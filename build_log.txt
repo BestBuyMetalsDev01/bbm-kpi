@@ -1,0 +1,89 @@
+﻿
+> bbm-kpi@0.0.0 build
+> vite build
+
+[36mvite v7.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 12 modules transformed.
+node.exe : 
+[31mΓ£ù[39m Build 
+failed in 227ms
+At C:\Program Files\
+nodejs\npm.ps1:29 
+char:3
++   & $NODE_EXE 
+$NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
+    + CategoryInfo  
+            : NotS  
+  pecified: ([31   
+ mΓ£ù[39m Build    
+ failed in 227m    
+s:String) [], R    
+emoteException
+    + FullyQualifie 
+   dErrorId : Nati  
+  veCommandError
+ 
+[31merror during 
+build:
+[31msrc/context/Aut
+hContext.js (59:8): 
+Expression 
+expected[31m
+file: [36mC:/Code/b
+bm-kpi/src/context/A
+uthContext.js:59:8[
+31m
+[33m
+57: 
+58:     return (
+59:         <AuthCon
+text.Provider 
+value={{ user, 
+login, logout, 
+error }}>
+            ^
+60:             
+{children}
+61:         </AuthCo
+ntext.Provider>
+[31m
+    at 
+getRollupError (file
+:///C:/Code/bbm-kpi/
+node_modules/rollup/
+dist/es/shared/parse
+Ast.js:401:41)
+    at ParseError.in
+itialise (file:///C:
+/Code/bbm-kpi/node_m
+odules/rollup/dist/e
+s/shared/node-entry.
+js:14506:28)
+    at convertNode (
+file:///C:/Code/bbm-
+kpi/node_modules/rol
+lup/dist/es/shared/n
+ode-entry.js:16390:1
+0)
+    at 
+convertProgram (file
+:///C:/Code/bbm-kpi/
+node_modules/rollup/
+dist/es/shared/node-
+entry.js:15630:12)
+    at 
+Module.setSource (fi
+le:///C:/Code/bbm-kp
+i/node_modules/rollu
+p/dist/es/shared/nod
+e-entry.js:17390:24)
+    at async ModuleL
+oader.addModuleSourc
+e (file:///C:/Code/b
+bm-kpi/node_modules/
+rollup/dist/es/share
+d/node-entry.js:2142
+0:13)[39m
