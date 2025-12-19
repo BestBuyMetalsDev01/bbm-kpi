@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginScreen from './components/LoginScreen';
 
 // PLACEHOLDER ID - User must replace this
-const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID";
+const GOOGLE_CLIENT_ID = "173412503636-0bj3f3qthn0bp25vu40ije21dqac3g4b.apps.googleusercontent.com";
 
 const AuthenticatedApp = () => {
   const { user } = useAuth();
