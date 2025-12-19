@@ -12,7 +12,7 @@ const LoginScreen = () => {
                 <div className="flex justify-center mb-6">
                     <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-2xl">
                         <img
-                            src="/BBMLOGO.png"
+                            src={`${import.meta.env.BASE_URL}BBMLOGO.png`}
                             alt="BBM Logo"
                             className="h-12 w-auto"
                         />
