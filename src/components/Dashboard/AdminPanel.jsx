@@ -1,5 +1,6 @@
 import React from 'react';
-import { Shield, Save, ArrowLeft, Calendar, Trash2, Plus, MapPin, Percent, Target, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { Shield, Save, ArrowLeft, Calendar, Trash2, Plus, MapPin, Percent, Target, RefreshCw, CheckCircle, AlertCircle, UserCog } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 import { AdminInput } from './Common';
 
@@ -18,8 +19,44 @@ const AdminPanel = ({
     handleSyncData,
     sqlSyncStatus,
     handleTriggerAppsScript,
-    triggerStatus
+    triggerStatus,
+    saveSettingsToCloud,
+    saveStatus,
+    processedData,
+    setSelectedLocation
 }) => {
+    const { user, setUser } = useAuth();
+
+    // Deduplicate Reps for the Simulation Dropdown
+    const availableReps = React.useMemo(() => {
+        if (!processedData) return [];
+        const map = new Map();
+        processedData.forEach(row => {
+            if (row.strSalesperson && row.strName) {
+                if (!map.has(row.strSalesperson)) {
+                    map.set(row.strSalesperson, row.strName);
+                }
+            }
+        });
+        return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+    }, [processedData]);
+
+    const handleSimulateUser = (e) => {
+        const selectedId = e.target.value;
+        if (!selectedId) return;
+
+        const rep = availableReps.find(r => r.id === selectedId);
+        if (rep) {
+            setUser(prev => ({
+                ...prev,
+                name: rep.name,
+                employeeId: rep.id,
+                'Job Title': 'Simulated Rep',
+                Department: 'Simulated Location'
+            }));
+        }
+    };
+
     const locationKeys = Object.keys(adminSettings.locationGoals);
 
     return (
@@ -34,12 +71,43 @@ const AdminPanel = ({
                         <p className="text-xs font-medium text-slate-400 dark:text-slate-500">Manage global goals, holidays, and data sources</p>
                     </div>
                 </div>
-                <button
-                    onClick={() => setViewMode('manager')}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all font-bold text-sm"
-                >
-                    <ArrowLeft className="w-4 h-4" /> Exit Admin
-                </button>
+
+                {/* User Simulation Control */}
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-2 rounded-lg">
+                    <UserCog className="w-4 h-4 text-purple-500" />
+                    <select
+                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-300 focus:outline-none w-48"
+                        onChange={handleSimulateUser}
+                        value={user?.employeeId || ""}
+                    >
+                        <option value="">Select User to Test...</option>
+                        {availableReps.map(rep => (
+                            <option key={rep.id} value={rep.id}>
+                                {rep.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={saveSettingsToCloud}
+                        disabled={saveStatus?.loading}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl transition-all font-bold text-sm shadow-lg ${saveStatus?.loading ? 'bg-slate-700 text-slate-400 cursor-not-allowed' :
+                            saveStatus?.success ? 'bg-green-600 text-white shadow-green-900/20' :
+                                'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-900/20'
+                            }`}
+                    >
+                        {saveStatus?.loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        {saveStatus?.loading ? 'Saving...' : saveStatus?.success ? 'Saved!' : 'Save Changes'}
+                    </button>
+                    <button
+                        onClick={() => setViewMode('manager')}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all font-bold text-sm"
+                    >
+                        <ArrowLeft className="w-4 h-4" /> Exit Admin
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
@@ -127,9 +195,14 @@ const AdminPanel = ({
                         </h3>
                         <div className="space-y-4">
                             <AdminInput
-                                label="Apps Script Web App URL"
+                                label="Data & Settings Source URL"
                                 value={adminSettings.googleSheetUrl || ''}
                                 onChange={(val) => setAdminSettings(prev => ({ ...prev, googleSheetUrl: val }))}
+                            />
+                            <AdminInput
+                                label="Directory Script URL"
+                                value={adminSettings.directoryScriptUrl || ''}
+                                onChange={(val) => setAdminSettings(prev => ({ ...prev, directoryScriptUrl: val }))}
                             />
                             <div className="mt-4 pt-4 border-t border-slate-800">
                                 <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Data Update & Refresh Settings</h4>
@@ -153,6 +226,23 @@ const AdminPanel = ({
                                         onChange={(val) => setAdminSettings(prev => ({ ...prev, refreshInterval: parseInt(val) || 10 }))}
                                         type="number"
                                     />
+                                </div>
+
+                                <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 mb-4">
+                                    <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1">Month-End Work Days Override</label>
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="number"
+                                            placeholder="Auto"
+                                            className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                            value={adminSettings.daysWorked || ''}
+                                            onChange={(e) => setAdminSettings(prev => ({ ...prev, daysWorked: e.target.value }))}
+                                        />
+                                        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap">
+                                            Status: <span className="text-blue-500 font-bold">{adminSettings.daysWorked ? 'Override On' : 'Automatic'}</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-2 italic">Leave blank to use system auto-calculation based on calendar and holidays.</p>
                                 </div>
 
                                 <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-300">
@@ -274,9 +364,73 @@ const AdminPanel = ({
                             ))}
                         </div>
                     </div>
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">User Permissions (Email Role Map)</h3>
+                        <div className="bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 p-4">
+                            <div className="space-y-2 mb-4 max-h-[200px] overflow-y-auto">
+                                {Object.entries(adminSettings.permissions || {}).map(([email, role]) => (
+                                    <div key={email} className="flex items-center justify-between p-2 bg-white dark:bg-slate-900 rounded border border-slate-100 dark:border-slate-700">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{email}</span>
+                                            <span className="text-[10px] text-slate-400 font-mono uppercase">{role}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const newPerms = { ...adminSettings.permissions };
+                                                delete newPerms[email];
+                                                setAdminSettings(prev => ({ ...prev, permissions: newPerms }));
+                                            }}
+                                            className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                                {Object.keys(adminSettings.permissions || {}).length === 0 && (
+                                    <div className="text-center py-4 text-xs text-slate-400 italic">No custom permissions set. Users will be assigned roles based on Job Title.</div>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                <input
+                                    id="new-perm-email"
+                                    type="email"
+                                    placeholder="user@bestbuymetals.com"
+                                    className="flex-1 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-purple-500"
+                                />
+                                <select
+                                    id="new-perm-role"
+                                    className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 outline-none focus:ring-1 focus:ring-purple-500"
+                                >
+                                    <option value="viewer">Viewer</option>
+                                    <option value="rep">Rep</option>
+                                    <option value="manager">Manager</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                                <button
+                                    onClick={() => {
+                                        const email = document.getElementById('new-perm-email').value;
+                                        const role = document.getElementById('new-perm-role').value;
+                                        if (email) {
+                                            setAdminSettings(prev => ({
+                                                ...prev,
+                                                permissions: {
+                                                    ...(prev.permissions || {}),
+                                                    [email.toLowerCase()]: role
+                                                }
+                                            }));
+                                            document.getElementById('new-perm-email').value = '';
+                                        }
+                                    }}
+                                    className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                                >
+                                    <Plus className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

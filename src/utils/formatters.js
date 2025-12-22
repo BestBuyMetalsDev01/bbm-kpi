@@ -1,13 +1,23 @@
-export const formatCurrency = (val) =>
-    new Intl.NumberFormat('en-US', {
+export const formatCurrency = (val) => {
+    const num = Number(val);
+    if (!Number.isFinite(num)) return '$0';
+    return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
         maximumFractionDigits: 0
-    }).format(val || 0);
+    }).format(num);
+};
 
-export const formatNumber = (val) =>
-    new Intl.NumberFormat('en-US', {
+export const formatNumber = (val) => {
+    const num = Number(val);
+    if (!Number.isFinite(num)) return '0';
+    return new Intl.NumberFormat('en-US', {
         maximumFractionDigits: 0
-    }).format(val || 0);
+    }).format(num);
+};
 
-export const formatPercent = (val) => `${(val || 0).toFixed(1)}%`;
+export const formatPercent = (val) => {
+    const num = Number(val);
+    if (!Number.isFinite(num)) return '0.0%';
+    return `${num.toFixed(1)}%`;
+};

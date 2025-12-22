@@ -25,7 +25,17 @@ const MiniStat = ({ label, value, goal, success, color }) => {
     );
 };
 
-const SummaryCards = ({ branchSummary }) => {
+const SummaryCards = ({ branchSummary, dateMode = 'monthly', selectedLocation = 'All' }) => {
+    const isYTD = dateMode === 'ytd';
+    const isAll = selectedLocation === 'All';
+    const prefix = isAll ? "Company" : (selectedLocation === 'National' ? "National Sales" : selectedLocation);
+
+    const getSalesTitle = () => {
+        if (isYTD) return `YTD ${prefix}`;
+        if (prefix.toLowerCase().includes("sales")) return prefix;
+        return `${prefix} Sales`;
+    };
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {/* CARD 1: SALES PERFORMANCE */}
@@ -35,14 +45,23 @@ const SummaryCards = ({ branchSummary }) => {
                         <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div>
-                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Sales Performance</h3>
+                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                            {getSalesTitle()}
+                        </h3>
                         <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{formatCurrency(branchSummary.sales)}</p>
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-auto">
-                    <MiniStat label="Monthly Goal" value={formatCurrency(branchSummary.totalSalesGoal)} />
-                    <MiniStat label="To Date Goal" value={formatCurrency(branchSummary.toDateSalesGoal)} />
-                    <MiniStat label="Variance" value={formatCurrency(branchSummary.salesVariance)} success={branchSummary.salesVariance >= 0} />
+                    <MiniStat label={isYTD ? "YTD Goal" : "Monthly Goal"} value={formatCurrency(branchSummary.totalSalesGoal)} />
+                    <MiniStat
+                        label="To Date Goal"
+                        value={formatCurrency(branchSummary.toDateSalesGoal)}
+                    />
+                    <MiniStat
+                        label={isYTD ? "YTD Variance" : "Variance"}
+                        value={formatCurrency(branchSummary.salesVariance)}
+                        success={branchSummary.salesVariance >= 0}
+                    />
                     <MiniStat label="Daily Needed" value={formatCurrency(branchSummary.dailyGoal)} color="blue" />
                 </div>
             </div>
@@ -59,8 +78,8 @@ const SummaryCards = ({ branchSummary }) => {
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-auto">
-                    <MiniStat label="Dollar Goal" value={formatCurrency(branchSummary.estGoal)} />
-                    <MiniStat label="To Date Goal" value={formatCurrency(branchSummary.toDateEstGoal)} />
+                    <MiniStat label={isYTD ? "YTD Dollar Goal" : "Dollar Goal"} value={formatCurrency(branchSummary.estGoal)} />
+                    <MiniStat label={isYTD ? "YTD To Date Goal" : "To Date Goal"} value={formatCurrency(branchSummary.toDateEstGoal)} />
                     <MiniStat
                         label="$ Conv. Rate"
                         value={formatPercent(branchSummary.actualDollarConv)}
@@ -83,7 +102,9 @@ const SummaryCards = ({ branchSummary }) => {
                         <PieChart className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                     </div>
                     <div>
-                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Financials & Margins</h3>
+                        <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                            {isYTD ? `YTD ${prefix} Financials` : `${prefix} Financials`}
+                        </h3>
                         <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{formatPercent(branchSummary.actualProfitPct)} Margin</p>
                     </div>
                 </div>
