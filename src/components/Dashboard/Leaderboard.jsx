@@ -9,6 +9,12 @@ const Leaderboard = ({ processedData, productsData = [] }) => {
         .sort((a, b) => b.curOrderTotals - a.curOrderTotals)
         .slice(0, 5);
 
+    // Top 5 Profit Leaders from processedData (Min $1000 revenue for accuracy)
+    const profitLeaders = [...processedData]
+        .filter(r => !r.isMisc && r.strSalesperson !== 'ECOMMERCE' && r.curOrderTotals > 1000)
+        .sort((a, b) => b.decProfitPercent - a.decProfitPercent)
+        .slice(0, 5);
+
     // Helper to find value by flexible key (case-insensitive, ignores spaces)
     const getVal = (obj, key) => {
         if (!obj || !key) return null;
@@ -169,6 +175,42 @@ const Leaderboard = ({ processedData, productsData = [] }) => {
                                 <div className="text-right">
                                     <p className="font-black text-amber-600 dark:text-amber-500">{formatCurrency(leader.curOrderTotals)}</p>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">MTD Total</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                {/* Profit Powerhouse Card */}
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+                    <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-6 text-white">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-md">
+                                <Award className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight">Profit Powerhouse</h3>
+                                <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest">Top Percentages (Min $1k Rev)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-2">
+                        {profitLeaders.map((leader, i) => (
+                            <div key={leader.strSalesperson} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-emerald-400 text-emerald-950 ring-4 ring-emerald-400/20' :
+                                    i === 1 ? 'bg-slate-300 text-slate-900' :
+                                        i === 2 ? 'bg-teal-400 text-teal-950' :
+                                            'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                                    }`}>
+                                    {i + 1}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="font-black text-slate-900 dark:text-white leading-none">{leader.strName}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{formatBranchName(leader.strDepartment)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-black text-emerald-600 dark:text-emerald-500">{formatPercent(leader.decProfitPercent)}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Profit</p>
                                 </div>
                             </div>
                         ))}
