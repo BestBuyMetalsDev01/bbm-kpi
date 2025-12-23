@@ -123,8 +123,23 @@ const Header = ({
                             </span>
                         )}
                     </div>
-                    <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full shadow-inner">
-                        <User className="w-4 h-4 text-slate-500" />
+                    <div className="relative group">
+                        <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-200 dark:border-slate-800 shadow-md transition-transform group-hover:scale-105 duration-200">
+                            {user?.picture ? (
+                                <img
+                                    src={user.picture}
+                                    alt={user.name}
+                                    className="w-full h-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                />
+                            ) : (
+                                <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                    <User className="w-5 h-5 text-slate-500" />
+                                </div>
+                            )}
+                        </div>
+                        {/* Status Indicator */}
+                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full shadow-sm"></div>
                     </div>
                 </div>
 
