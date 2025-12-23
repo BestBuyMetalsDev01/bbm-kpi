@@ -79,7 +79,11 @@ const SummaryCards = ({ branchSummary, dateMode = 'monthly', selectedLocation = 
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-auto">
                     <MiniStat label={isYTD ? "YTD Dollar Goal" : "Dollar Goal"} value={formatCurrency(branchSummary.estGoal)} />
-                    <MiniStat label={isYTD ? "YTD To Date Goal" : "To Date Goal"} value={formatCurrency(branchSummary.toDateEstGoal)} />
+                    <MiniStat
+                        label="Est. Variance"
+                        value={formatCurrency(branchSummary.estDollars - branchSummary.estGoal)}
+                        success={(branchSummary.estDollars - branchSummary.estGoal) >= 0}
+                    />
                     <MiniStat
                         label="$ Conv. Rate"
                         value={formatPercent(branchSummary.actualDollarConv)}

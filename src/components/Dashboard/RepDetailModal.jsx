@@ -34,7 +34,7 @@ const RepDetailModal = ({ isOpen, onClose, repData, fullHistory, adminSettings, 
         invoiced: repData.curSubTotal || 0,
         goal: repData.toDateSalesGoal || 0,
         totalGoal: repData.totalSalesGoal || 0,
-        variance: repData.toDateVariance || 0,
+        variance: repData.monthlyVariance || 0,
         pace: repData.salesPace || 0,
         paceToGoal: repData.paceToGoal || 0,
         profitPct: repData.grossProfitPct || 0,
@@ -100,8 +100,8 @@ const RepDetailModal = ({ isOpen, onClose, repData, fullHistory, adminSettings, 
                                         </div>
                                         <div className="flex items-center gap-6">
                                             <div>
-                                                <p className="text-slate-500 text-[10px] font-bold uppercase">To Date Goal</p>
-                                                <p className="text-lg font-bold text-slate-300">{formatCurrency(metrics.goal)}</p>
+                                                <p className="text-slate-500 text-[10px] font-bold uppercase">Monthly Goal</p>
+                                                <p className="text-lg font-bold text-slate-300">{formatCurrency(metrics.totalGoal)}</p>
                                             </div>
                                             <div className={`px-3 py-1 rounded-full text-xs font-black ${metrics.variance >= 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                                                 {metrics.variance >= 0 ? '+' : ''}{formatCurrency(metrics.variance)}

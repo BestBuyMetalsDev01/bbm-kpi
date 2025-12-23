@@ -23,7 +23,7 @@ const ReportDashboard = ({ initialViewMode }) => {
         data, loading, sortConfig, viewMode, setViewMode, userRole, selectedLocation, setSelectedLocation,
         showManagerSettings, setShowManagerSettings, visibleRepIds, setVisibleRepIds,
         refreshTrigger, setRefreshTrigger, darkMode, setDarkMode, adminSettings, setAdminSettings,
-        processedData, companyProcessedData, branchSummary, toggleAdminMode, monthNames, handleSort,
+        processedData, visibleData, companyProcessedData, branchSummary, toggleAdminMode, monthNames, handleSort,
         handleLocationGoalChange, handleLocationMonthPctChange, handleFormulaChange, toggleRepVisibility,
         handleTriggerAppsScript, triggerStatus, saveSettingsToCloud, saveStatus,
         productsData,
@@ -62,10 +62,10 @@ const ReportDashboard = ({ initialViewMode }) => {
     const columns = [
         { key: 'totalSalesGoal', label: 'Sales Goals', type: 'currency', tooltip: adminSettings.formulas.totalSalesGoal },
         { key: 'curOrderTotals', label: 'Sales Orders', type: 'currency', tooltip: adminSettings.formulas.salesOrders },
-        { key: 'curOrderQty', label: 'Orders', type: 'number', tooltip: adminSettings.formulas.orderQty },
+        { key: 'intOrders', label: 'Orders', type: 'number', tooltip: adminSettings.formulas.orderQty },
         { key: 'performanceRates', label: 'Performance Rates', type: 'custom', tooltip: "Profit, $ Conv, and Qty Conv" },
         { key: 'salesPace', label: 'Month Pace', type: 'currency', tooltip: adminSettings.formulas.monthPace },
-        { key: 'paceToGoal', label: 'Pace vs Goal', type: 'percentage', tooltip: adminSettings.formulas.paceVsGoal },
+        { key: 'paceToGoal', label: 'Pace vs Goal', type: 'percent', colored: true, tooltip: adminSettings.formulas.paceVsGoal },
         { key: 'curSubTotal', label: 'Invoiced Totals', type: 'currency', tooltip: adminSettings.formulas.invoiceDollars }
     ];
 
@@ -187,7 +187,7 @@ const ReportDashboard = ({ initialViewMode }) => {
 
                             <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                                 <MainTable
-                                    processedData={processedData}
+                                    processedData={visibleData}
                                     columns={columns}
                                     handleSort={handleSort}
                                     sortConfig={sortConfig}

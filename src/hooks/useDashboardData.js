@@ -12,7 +12,6 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     const [userRole, setUserRole] = useState('rep'); // rep, manager, executive, admin
     const [selectedLocation, setSelectedLocation] = useState('Knoxville');
     const [showManagerSettings, setShowManagerSettings] = useState(false);
-    const [visibleRepIds, setVisibleRepIds] = useState(new Set());
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [triggerStatus, setTriggerStatus] = useState({ loading: false, error: null, success: false });
     const [productsData, setProductsData] = useState([]);
@@ -24,26 +23,24 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [dateMode, setDateMode] = useState('monthly'); // 'monthly' or 'ytd'
 
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-    const initialHolidays = [
-        { id: 1, name: "New Year's Day", date: "2025-01-01" },
-        { id: 2, name: "Memorial Day", date: "2025-05-26" },
-        { id: 3, name: "Independence Day", date: "2025-07-04" },
-        { id: 4, name: "Labor Day", date: "2025-09-01" },
-        { id: 5, name: "Thanksgiving", date: "2025-11-27" },
-        { id: 6, name: "Black Friday", date: "2025-11-28" },
-        { id: 7, name: "Christmas Day", date: "2025-12-25" },
-        { id: 8, name: "Day After Christmas", date: "2025-12-26" }
-    ];
-
     const [adminSettings, setAdminSettings] = useState(() => {
+        const initialHolidays = [
+            { id: 1, name: "New Year's Day", date: "2025-01-01" },
+            { id: 2, name: "Memorial Day", date: "2025-05-26" },
+            { id: 3, name: "Independence Day", date: "2025-07-04" },
+            { id: 4, name: "Labor Day", date: "2025-09-01" },
+            { id: 5, name: "Thanksgiving", date: "2025-11-27" },
+            { id: 6, name: "Black Friday", date: "2025-11-28" },
+            { id: 7, name: "Christmas Day", date: "2025-12-25" },
+            { id: 8, name: "Day After Christmas", date: "2025-12-26" }
+        ];
+
         const defaults = {
             googleSheetUrl: 'https://script.google.com/macros/s/AKfycbz8DcVQJNh6Tjz_PhVEpGZBjI0INmQLOb1bdB-fyVswITRjmMHffRBoXklyL_zklKp2/exec',
             directoryScriptUrl: 'https://script.google.com/macros/s/AKfycbyGmZ9YQVypq9rhXreQDkOhdn9BNuRKdX4h7XHSOrgKQcNLB6u8t214ycBeHEh3yuzAXQ/exec',
             autoRefreshEnabled: false,
             refreshInterval: 10,
-            daysWorked: null, // null means auto-calculate
+            daysWorked: null,
             holidays: initialHolidays,
             repSettings: {},
             defaultEstGoal: 300000,
@@ -58,51 +55,44 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 'Charlotte': { yearlySales: 1800000, monthlyPcts: Array(12).fill(8.33), est: 350000, estQty: 50, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
                 'National': { yearlySales: 5000000, monthlyPcts: Array(12).fill(8.33), est: 800000, estQty: 100, profitGoal: 30, closeRateDollar: 40, closeRateQty: 35 },
             },
+            visibleRepIds: [],
+            initializedLocations: [],
             formulas: {
-                daysWorked: "Input by Manager/Admin",
-                expContrib: "Manager Setting per Rep",
-                actContrib: "(Rep Sales / Location Total) * 100",
-                totalSalesGoal: "Yearly Goal * Current Month %",
-                salesOrders: "SQL: curOrderTotals",
-                toDateSalesGoal: "Monthly Goal * (Days Worked / Total Work Days)",
-                toDateVariance: "Sales Orders - To Date Goal",
-                salesToMeetGoal: "Monthly Goal - Sales Orders",
-                dailySalesGoal: "Sales To Meet / Remaining Work Days",
-                orderQty: "SQL: intOrders",
-                estDollars: "SQL: curQuoted",
-                toDateEstGoal: "Branch Est Goal * Progress %",
-                estQty: "SQL: intQuotes",
-                toDateEstQtyGoal: "Branch Est Qty Goal * Progress %",
-                invoiceDollars: "SQL: curSubTotal",
-                profitDollars: "SQL: curInvoiceProfit",
-                invoiceQty: "SQL: intInvoices",
-                profitPercent: "SQL: decProfitPercent",
-                convRateDollars: "(Sales Orders / Estimates $) * 100",
-                convRateQty: "(Order Qty / Estimate Qty) * 100",
-                salesOrdersYTD: "SQL: curOrderTotalsYTD",
-                orderQtyYTD: "SQL: intOrdersYTD",
-                estDollarsYTD: "SQL: curQuotedYTD"
+                daysWorked: "Input", expContrib: "Manager", actContrib: "(Rep/Branch)*100",
+                totalSalesGoal: "Yearly*Month%", salesOrders: "curOrderTotals",
+                toDateSalesGoal: "Goal*(Elapsed/Total)", toDateVariance: "Sales-ToDateGoal",
+                salesToMeetGoal: "Goal-Sales", dailySalesGoal: "ToMeet/Remaining",
+                orderQty: "intOrders", estDollars: "curQuoted", toDateEstGoal: "EstGoal*Progress",
+                estQty: "intQuotes", toDateEstQtyGoal: "EstQtyGoal*Progress",
+                invoiceDollars: "curSubTotal", profitDollars: "curInvoiceProfit", invoiceQty: "intInvoices",
+                profitPercent: "decProfitPercent", convRateDollars: "(Orders/Est$)*100", convRateQty: "(Orders/EstQty)*100",
+                salesOrdersYTD: "curOrderTotalsYTD", orderQtyYTD: "intOrdersYTD", estDollarsYTD: "curQuotedYTD"
             },
-            permissions: {
-                'jacob@bestbuymetals.com': 'admin'
-            } // email -> role mapping
+            permissions: { 'jacob@bestbuymetals.com': 'admin' }
         };
 
         try {
             const saved = localStorage.getItem('bbm_kpi_admin_settings');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                // Merge saved settings ON TOP of defaults to ensure new keys exist
-                const merged = { ...defaults, ...parsed };
-                // Ensure Jacob is ALWAYS in permissions even if local storage wiped him
-                merged.permissions = { ...defaults.permissions, ...(parsed.permissions || {}) };
-                return merged;
-            }
-        } catch (e) {
-            console.error("Failed to parse saved settings", e);
-        }
+            if (saved) return { ...defaults, ...JSON.parse(saved) };
+        } catch (e) { console.error("Settings parse error:", e); }
         return defaults;
     });
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const fetchedRef = useRef(false);
+
+    // Derived Visibility derived from adminSettings
+    const visibleRepIds = useMemo(() => new Set(adminSettings.visibleRepIds || []), [adminSettings.visibleRepIds]);
+    const initializedLocationsSet = useMemo(() => new Set(adminSettings.initializedLocations || []), [adminSettings.initializedLocations]);
+
+    const setVisibleRepIds = (newSelection) => {
+        setAdminSettings(prev => {
+            const currentSet = new Set(prev.visibleRepIds || []);
+            const nextSet = typeof newSelection === 'function' ? newSelection(currentSet) : newSelection;
+            return { ...prev, visibleRepIds: Array.from(nextSet) };
+        });
+    };
+
 
     // Handle initialViewMode updates if props change
     useEffect(() => {
@@ -114,12 +104,42 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         setShowManagerSettings(viewMode === 'manager');
     }, [viewMode]);
 
+
+    // Automatically initialize visibility for a new location the first time it is visited
+    useEffect(() => {
+        if (!data || data.length === 0 || selectedLocation === 'All') return;
+
+        // Use the current set from settings
+        const currentInitialized = new Set(adminSettings.initializedLocations || []);
+        if (currentInitialized.has(selectedLocation)) return;
+
+        const currentLocRepos = data.filter(r => r.strDepartment === selectedLocation).map(r => r.strSalesperson);
+        if (currentLocRepos.length === 0) return;
+
+        // Check if we already have visibility settings for this location inside the existing visibleRepIds array
+        const alreadyHasSelectionsForLoc = currentLocRepos.some(id => visibleRepIds.has(id));
+
+        if (alreadyHasSelectionsForLoc) {
+            // We already have some selection history for this branch, so just mark it initialized
+            setAdminSettings(prev => ({
+                ...prev,
+                initializedLocations: Array.from(new Set([...(prev.initializedLocations || []), selectedLocation]))
+            }));
+            return;
+        }
+
+        console.log(`Auto-initializing visibility for first-time visit: ${selectedLocation}`);
+        setAdminSettings(prev => ({
+            ...prev,
+            initializedLocations: Array.from(new Set([...(prev.initializedLocations || []), selectedLocation])),
+            visibleRepIds: Array.from(new Set([...(prev.visibleRepIds || []), ...currentLocRepos]))
+        }));
+    }, [selectedLocation, data.length > 0, adminSettings.initializedLocations?.length]);
+
     useEffect(() => {
         localStorage.setItem('bbm_kpi_admin_settings', JSON.stringify(adminSettings));
     }, [adminSettings]);
 
-    // Prevent infinite loops by tracking fetch state
-    const fetchedRef = useRef(false);
 
     // Cloud Persistence: Fetch Settings on Mount
     useEffect(() => {
@@ -141,9 +161,21 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 const cloudSettings = await response.json();
 
                 if (cloudSettings && Object.keys(cloudSettings).length > 0) {
-                    console.log("Cloud Settings Loaded:", cloudSettings);
-                    // Update settings only if changed? (Simple spread is fine if effect doesn't depend on it)
-                    setAdminSettings(prev => ({ ...prev, ...cloudSettings }));
+                    console.log("[DEBUG] Raw Cloud Settings:", cloudSettings);
+                    setAdminSettings(prev => {
+                        const merged = {
+                            ...prev,
+                            ...cloudSettings,
+                            visibleRepIds: cloudSettings.visibleRepIds && cloudSettings.visibleRepIds.length > 0
+                                ? cloudSettings.visibleRepIds
+                                : prev.visibleRepIds,
+                            initializedLocations: cloudSettings.initializedLocations && cloudSettings.initializedLocations.length > 0
+                                ? cloudSettings.initializedLocations
+                                : prev.initializedLocations
+                        };
+                        console.log("[DEBUG] Merged AdminSettings:", merged);
+                        return merged;
+                    });
                 }
             } catch (error) {
                 console.error("Failed to fetch cloud settings:", error);
@@ -251,6 +283,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 action: 'saveSettings',
                 settings: adminSettings
             };
+            console.log("[DEBUG] Saving to cloud payload:", payload);
 
             await fetch(adminSettings.googleSheetUrl, {
                 method: 'POST',
@@ -360,9 +393,17 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 const headers = jsonData[0];
                 const keyMap = {
                     "Order Totals (Current)": "curOrderTotals",
+                    "Order Totals": "curOrderTotals",
+                    "Sales Totals": "curOrderTotals",
                     "Orders Count (Current)": "intOrders",
+                    "Order Count": "intOrders",
+                    "Orders Count": "intOrders",
+                    "intOrders": "intOrders",
                     "Quoted (Current)": "curQuoted",
+                    "Quoted Totals": "curQuoted",
                     "Quotes Count (Current)": "intQuotes",
+                    "Quotes Count": "intQuotes",
+                    "Quote Count": "intQuotes",
                     "Sub Total": "curSubTotal",
                     "Invoice Profit": "curInvoiceProfit",
                     "Invoice Count": "intInvoices",
@@ -414,13 +455,20 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                     }
                     obj._parsedDate = d;
 
+                    // Normalize Departments (Handle 'National Sales' vs 'National' discrepancy)
+                    if (obj.strDepartment && typeof obj.strDepartment === 'string') {
+                        const dept = obj.strDepartment.trim().toLowerCase();
+                        if (dept.startsWith('national') || dept.startsWith('nationsl')) {
+                            obj.strDepartment = 'National';
+                        }
+                    }
+
                     return obj;
                 });
 
                 console.log("Parsed Rows:", rows.length, "Rows with Date:", rows.filter(r => r._parsedDate).length);
 
                 setData(rows);
-                initVisibleReps(rows);
 
                 // Fetch Product of the Month Data
                 try {
@@ -489,19 +537,19 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             });
             setData(mockRows);
             if (settingsChanged) setAdminSettings(prev => ({ ...prev, repSettings: initialSettings }));
-            initVisibleReps(mockRows);
             setLoading(false);
-        };
-
-        const initVisibleReps = (rows) => {
-            const initialVisible = new Set(rows.filter(r => r.strDepartment === 'Knoxville').map(r => r.strSalesperson));
-            setVisibleRepIds(initialVisible);
         };
 
         setTimeout(fetchSheetData, 600);
     }, [adminSettings.googleSheetUrl, refreshTrigger]);
 
     const companyProcessedData = useMemo(() => {
+        console.log("[DEBUG] Recalculating companyProcessedData", {
+            repSettingsCount: Object.keys(adminSettings.repSettings || {}).length,
+            locationGoalsSet: Object.keys(adminSettings.locationGoals || {}).length,
+            dateMode,
+            dataSize: data.length
+        });
         if (!data || data.length === 0) return [];
 
         const validRows = data.filter(r => r._parsedDate instanceof Date && !isNaN(r._parsedDate));
@@ -528,9 +576,13 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             locationTotals[row.strDepartment] += row.curOrderTotals;
         });
 
-        return currentPeriodData.map(row => {
+        return currentPeriodData.map((row, idx) => {
             const rowDate = row._parsedDate;
             let repSettings = adminSettings.repSettings?.[row.strSalesperson] || {};
+
+            if (idx < 5) {
+                console.log(`[DEBUG] Row ${idx} Row Person ID: "${row.strSalesperson}" Settings found:`, !!adminSettings.repSettings?.[row.strSalesperson]);
+            }
 
             if (rowDate) {
                 const monthKey = `${rowDate.getFullYear()}-${String(rowDate.getMonth() + 1).padStart(2, '0')}`;
@@ -539,14 +591,46 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 }
             }
 
-            const rw = parseFloat(repSettings.daysWorked) || calculateElapsedWorkDays || 1;
+            // Inherit active work days: Personal Override > Global Override > Auto-Calculate
+            const rw = parseFloat(repSettings.daysWorked) || parseFloat(adminSettings.daysWorked) || calculateElapsedWorkDays || 1;
             const totalDays = calculateTotalWorkDays || 20;
             const locGoals = adminSettings.locationGoals[row.strDepartment] || {};
             const currentMonthIndex = rowDate ? rowDate.getMonth() : selectedDate.getMonth();
-            const salesGoal = (locGoals.yearlySales || 0) * ((locGoals.monthlyPcts?.[currentMonthIndex] || 8.33) / 100);
+
             const targetPct = parseFloat(repSettings.targetPct) || 0;
-            const totalSalesGoal = salesGoal * (targetPct / 100);
+
+            // 1. Calculate the base goal for the rep
+            let totalSalesGoal = 0;
+            const manualPersonalGoal = parseFloat(repSettings.personalGoal);
+
+            if (!isNaN(manualPersonalGoal) && manualPersonalGoal > 0) {
+                // If the manager set a specific dollar goal for this rep
+                totalSalesGoal = manualPersonalGoal;
+            } else {
+                // FALLBACK: Calculate based on location goal and rep's expected % contribution
+                let branchMonthGoal = 0;
+                const manualBranchGoal = parseFloat(locGoals.est);
+
+                if (!isNaN(manualBranchGoal) && manualBranchGoal > 0) {
+                    branchMonthGoal = manualBranchGoal;
+                } else {
+                    branchMonthGoal = (locGoals.yearlySales || 0) * ((locGoals.monthlyPcts?.[currentMonthIndex] || 8.33) / 100);
+                }
+
+                totalSalesGoal = branchMonthGoal * (targetPct / 100);
+            }
+
             const toDateSalesGoal = totalSalesGoal * (rw / totalDays);
+
+            if (idx < 5) {
+                console.log(`[DEBUG] Row ${idx} (${row.strName}) Goals:`, {
+                    personalGoal: repSettings.personalGoal,
+                    targetPct: repSettings.targetPct,
+                    branchManualGoal: locGoals.est,
+                    finalTotalSalesGoal: totalSalesGoal
+                });
+            }
+
             const salesToMeetGoal = totalSalesGoal - row.curOrderTotals;
 
             const closeRateDollar = locGoals.closeRateDollar || 30;
@@ -564,9 +648,11 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 toDateVariance: row.curOrderTotals - toDateSalesGoal,
                 monthlyVariance: row.curOrderTotals - totalSalesGoal,
                 salesToMeetGoal,
-                dailySalesGoal: salesToMeetGoal > 0 ? salesToMeetGoal / (totalDays - rw) : 0,
+                dailySalesGoal: salesToMeetGoal > 0 ? salesToMeetGoal / Math.max(1, totalDays - rw) : 0,
+                salesPace: rw > 0 ? (row.curOrderTotals / rw) * totalDays : 0,
+                paceToGoal: totalSalesGoal > 0 ? (((row.curOrderTotals / rw) * totalDays) / totalSalesGoal) * 100 : 0,
                 toDateEstGoal: estGoal * (rw / totalDays),
-                toDateEstQtyGoal: (locGoals.estQty || adminSettings.defaultEstQtyGoal) * (rw / totalDays),
+                toDateEstQtyGoal: (locGoals.estQty || adminSettings.defaultEstQtyGoal || 20) * (rw / totalDays),
                 convRateDollars: row.curQuoted > 0 ? (row.curOrderTotals / row.curQuoted) * 100 : 0,
                 convRateQty: row.intQuotes > 0 ? (row.intOrders / row.intQuotes) * 100 : 0,
                 isMisc: false
@@ -582,17 +668,30 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             result = result.filter(item => item.strDepartment === selectedLocation);
         }
 
+        return result.sort((a, b) => {
+            const sortKey = sortConfig?.key || 'curOrderTotals';
+            const valA = a[sortKey]; const valB = b[sortKey];
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [companyProcessedData, selectedLocation, sortConfig]);
+
+    const visibleData = useMemo(() => {
+        if (!processedData.length) return [];
+
         if (viewMode === 'manager' || viewMode === 'viewer') {
             const shownRows = [];
             const misc = {
                 strName: 'Misc / Other Reps', strDepartment: selectedLocation, isMisc: true,
                 curOrderTotals: 0, intOrders: 0, curQuoted: 0, intQuotes: 0, curSubTotal: 0, curInvoiceProfit: 0, intInvoices: 0,
                 curOrderTotalsYTD: 0, intOrdersYTD: 0, curQuotedYTD: 0, actContrib: 0, expContrib: 0, totalSalesGoal: 0, toDateSalesGoal: 0,
-                toDateVariance: 0, monthlyVariance: 0, salesToMeetGoal: 0, dailySalesGoal: 0, toDateEstGoal: 0, toDateEstQtyGoal: 0
+                toDateVariance: 0, monthlyVariance: 0, salesToMeetGoal: 0, dailySalesGoal: 0, toDateEstGoal: 0, toDateEstQtyGoal: 0,
+                decProfitPercent: 0
             };
             let miscCount = 0;
-            result.forEach(row => {
-                if (!visibleRepIds.size || visibleRepIds.has(row.strSalesperson)) shownRows.push(row);
+            processedData.forEach(row => {
+                if (visibleRepIds.has(row.strSalesperson)) shownRows.push(row);
                 else {
                     miscCount++; misc.curOrderTotals += row.curOrderTotals; misc.intOrders += row.intOrders; misc.curQuoted += (row.curQuoted || 0);
                     misc.intQuotes += (row.intQuotes || 0); misc.curSubTotal += (row.curSubTotal || 0); misc.curInvoiceProfit += (row.curInvoiceProfit || 0);
@@ -618,15 +717,8 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             });
         }
 
-        return result.sort((a, b) => {
-            const sortKey = sortConfig?.key || 'curOrderTotals';
-            if (a.isMisc) return 1; if (b.isMisc) return -1;
-            const valA = a[sortKey]; const valB = b[sortKey];
-            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
-        });
-    }, [companyProcessedData, viewMode, selectedLocation, visibleRepIds, sortConfig, adminSettings, calculateElapsedWorkDays]);
+        return processedData;
+    }, [processedData, viewMode, visibleRepIds, sortConfig, adminSettings, calculateElapsedWorkDays]);
 
 
     const branchSummary = useMemo(() => {
@@ -670,12 +762,20 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                     summaryEstQtyGoal += (g.estQty || 0) * (currentMonthIndex + 1) / 12;
                 } else {
                     const monthPct = (g.monthlyPcts && g.monthlyPcts[currentMonthIndex]) || 8.33;
-                    const sg = (g.yearlySales || 0) * (monthPct / 100);
+                    let sg = 0;
+
+                    // Check for branch-specific manual override
+                    if (!isNaN(parseFloat(g.est)) && parseFloat(g.est) > 0) {
+                        sg = parseFloat(g.est);
+                    } else {
+                        sg = (g.yearlySales || 0) * (monthPct / 100);
+                    }
+
                     summaryGoal += sg;
                     summaryToDateGoal += sg * progressRatio;
                     summaryEstGoal += sg / closeRate;
                     summaryToDateEstGoal += (sg * progressRatio) / closeRate;
-                    summaryEstQtyGoal += (g.estQty || 0);
+                    summaryEstQtyGoal += (parseFloat(g.estQty) || 0);
                 }
             });
             if (locs.length > 0) {
@@ -686,10 +786,20 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         } else {
             const g = adminSettings.locationGoals[selectedLocation] || {};
             const closeRate = (g.closeRateDollar || 30) / 100;
+            const manualMonthlyGoal = parseFloat(g.est);
+
             if (dateMode === 'ytd') {
                 for (let i = 0; i <= currentMonthIndex; i++) {
                     const monthPct = (g.monthlyPcts && g.monthlyPcts[i]) || 8.33;
-                    const monthlySG = (g.yearlySales || 0) * (monthPct / 100);
+                    let monthlySG = 0;
+
+                    // Use override if this is the current month and override exists
+                    if (i === currentMonthIndex && !isNaN(parseFloat(g.est)) && parseFloat(g.est) > 0) {
+                        monthlySG = parseFloat(g.est);
+                    } else {
+                        monthlySG = (g.yearlySales || 0) * (monthPct / 100);
+                    }
+
                     summaryGoal += monthlySG;
                     if (i < currentMonthIndex) {
                         summaryToDateGoal += monthlySG;
@@ -699,14 +809,20 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 }
                 summaryEstGoal = summaryGoal / closeRate;
                 summaryToDateEstGoal = summaryToDateGoal / closeRate;
-                summaryEstQtyGoal += (g.estQty || 0) * (currentMonthIndex + 1) / 12;
+                summaryEstQtyGoal = (parseFloat(g.estQty) || 0) * (currentMonthIndex + 1) / 12;
             } else {
-                const monthPct = (g.monthlyPcts && g.monthlyPcts[currentMonthIndex]) || 8.33;
-                summaryGoal = (g.yearlySales || 0) * (monthPct / 100);
+                // MONTHLY VIEW: Prioritize 'est' override from Branch Parameters
+                if (!isNaN(manualMonthlyGoal) && manualMonthlyGoal > 0) {
+                    summaryGoal = manualMonthlyGoal;
+                } else {
+                    const monthPct = (g.monthlyPcts && g.monthlyPcts[currentMonthIndex]) || 8.33;
+                    summaryGoal = (g.yearlySales || 0) * (monthPct / 100);
+                }
+
                 summaryToDateGoal = summaryGoal * progressRatio;
                 summaryEstGoal = summaryGoal / closeRate;
                 summaryToDateEstGoal = summaryToDateGoal / closeRate;
-                summaryEstQtyGoal = (g.estQty || 0);
+                summaryEstQtyGoal = parseFloat(g.estQty) || 0;
             }
             targetProfitPct = g.profitGoal || 0;
             targetDollarConv = g.closeRateDollar || 30;
@@ -722,14 +838,22 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 invoiceQty: acc.invoiceQty + (row.intInvoices || 0),
             }), { sales: 0, orderQty: 0, estDollars: 0, estQty: 0, invoiced: 0, profit: 0, invoiceQty: 0 });
 
+        console.log(`[DEBUG] Branch Summary (${selectedLocation}):`, {
+            summaryGoal,
+            summaryToDateGoal,
+            summaryEstGoal,
+            summaryEstQtyGoal,
+            manualBranchOverride: adminSettings.locationGoals[selectedLocation]?.est
+        });
+
         return {
             totalSalesGoal: summaryGoal, sales: actuals.sales, toDateSalesGoal: summaryToDateGoal,
-            salesVariance: actuals.sales - summaryToDateGoal,
+            salesVariance: actuals.sales - summaryGoal,
             monthlyVariance: actuals.sales - summaryGoal,
             salesToMeet: Math.max(0, summaryGoal - actuals.sales),
             dailyGoal: remainingDays > 0 ? Math.max(0, summaryGoal - actuals.sales) / remainingDays : 0,
             estDollars: actuals.estDollars, estGoal: summaryEstGoal, toDateEstGoal: summaryToDateEstGoal,
-            estVariance: actuals.estDollars - summaryToDateEstGoal,
+            estVariance: actuals.estDollars - summaryEstGoal,
             dailyEstGoal: remainingDays > 0 ? Math.max(0, summaryEstGoal - actuals.estDollars) / remainingDays : 0,
             estQty: actuals.estQty, toDateEstQtyGoal: summaryEstQtyGoal * progressRatio,
             invoiced: actuals.invoiced, profit: actuals.profit,
@@ -741,16 +865,23 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     }, [processedData, selectedLocation, adminSettings, calculateTotalWorkDays, selectedDate, dateMode]);
 
     const handleLocationGoalChange = (location, field, value) => {
-        setAdminSettings(prev => ({
-            ...prev,
-            locationGoals: {
-                ...prev.locationGoals,
-                [location]: {
-                    ...(prev.locationGoals[location] || { yearlySales: 0, monthlyPcts: Array(12).fill(0) }),
-                    [field]: parseFloat(value) || 0
+        setAdminSettings(prev => {
+            const currentGoals = prev.locationGoals?.[location] || { yearlySales: 0, monthlyPcts: Array(12).fill(8.33) };
+
+            // For 'est' and 'estQty' we might want to keep them as strings until calculation for better UX 
+            // (so users can type '200000' without it jumping to 200000 immediately), 
+            // but for safety let's just make sure they update.
+            return {
+                ...prev,
+                locationGoals: {
+                    ...prev.locationGoals,
+                    [location]: {
+                        ...currentGoals,
+                        [field]: value
+                    }
                 }
-            }
-        }));
+            };
+        });
     };
 
     const handleLocationMonthPctChange = (location, monthIndex, value) => {
@@ -848,7 +979,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         saveSettingsToCloud,
         saveStatus,
         adminSettings, setAdminSettings,
-        calculateTotalWorkDays, processedData, companyProcessedData, branchSummary, toggleAdminMode, monthNames, handleSort,
+        calculateTotalWorkDays, processedData, visibleData, companyProcessedData, branchSummary, toggleAdminMode, monthNames, handleSort,
         handleLocationGoalChange, handleLocationMonthPctChange, handleFormulaChange, toggleRepVisibility,
         handleTriggerAppsScript, triggerStatus,
         productsData,

@@ -128,7 +128,8 @@ const MainTable = ({ processedData = [], loading, sortConfig, handleSort, column
                                         else if (col.type === 'number') displayVal = formatNumber(displayVal);
 
                                         if (col.colored) {
-                                            if (col.key === 'toDateVariance') colorClass = row[col.key] >= 0 ? "text-green-600 dark:text-green-400 font-medium" : "text-red-600 dark:text-red-400 font-medium";
+                                            if (col.key === 'monthlyVariance') colorClass = row[col.key] >= 0 ? "text-green-600 dark:text-green-400 font-medium" : "text-red-600 dark:text-red-400 font-medium";
+                                            if (col.key === 'paceToGoal') colorClass = row[col.key] >= 100 ? "text-green-600 dark:text-green-400 font-bold" : "text-amber-600 dark:text-amber-500 font-bold";
                                             if (col.key === 'curInvoiceProfit') colorClass = "text-green-700 dark:text-green-400 font-medium";
                                         }
 
@@ -253,7 +254,7 @@ const MainTable = ({ processedData = [], loading, sortConfig, handleSort, column
 
                                         if (col.key === 'curOrderTotals') {
                                             const actual = row.curOrderTotals || 0;
-                                            const variance = row.toDateVariance || 0;
+                                            const variance = row.monthlyVariance || 0;
                                             const varColor = variance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400";
                                             return (
                                                 <td key={col.key} className="p-1.5 text-right text-sm border-r border-slate-50 dark:border-slate-800 last:border-0">

@@ -289,25 +289,13 @@ const ManagerPanel = ({
                                         <AdminInput
                                             label="Estimated Monthly Sales Goal"
                                             value={adminSettings.locationGoals[selectedLocation]?.est || ''}
-                                            onChange={(val) => setAdminSettings(prev => ({
-                                                ...prev,
-                                                locationGoals: {
-                                                    ...prev.locationGoals,
-                                                    [selectedLocation]: { ...prev.locationGoals[selectedLocation], est: val }
-                                                }
-                                            }))}
+                                            onChange={(val) => handleLocationGoalChange(selectedLocation, 'est', val)}
                                             prefix="$"
                                         />
                                         <AdminInput
                                             label="Estimated Monthly Quote Goal"
                                             value={adminSettings.locationGoals[selectedLocation]?.estQty || ''}
-                                            onChange={(val) => setAdminSettings(prev => ({
-                                                ...prev,
-                                                locationGoals: {
-                                                    ...prev.locationGoals,
-                                                    [selectedLocation]: { ...prev.locationGoals[selectedLocation], estQty: val }
-                                                }
-                                            }))}
+                                            onChange={(val) => handleLocationGoalChange(selectedLocation, 'estQty', val)}
                                             type="number"
                                         />
                                     </div>
