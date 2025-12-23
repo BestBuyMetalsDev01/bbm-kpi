@@ -26,6 +26,7 @@ const AdminPanel = ({
     setSelectedLocation
 }) => {
     const { user, setUser } = useAuth();
+    const [showPermissionsModal, setShowPermissionsModal] = React.useState(false);
 
     // Deduplicate Reps for the Simulation Dropdown
     const availableReps = React.useMemo(() => {
@@ -365,14 +366,61 @@ const AdminPanel = ({
                         </div>
                     </div>
                     <div>
-                        <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">User Permissions (Email Role Map)</h3>
-                        <div className="bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 p-4">
-                            <div className="space-y-2 mb-4 max-h-[200px] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Access Control</h3>
+                            <button
+                                onClick={() => setShowPermissionsModal(true)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-[10px] font-black tracking-widest hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all uppercase"
+                            >
+                                <UserCog className="w-3 h-3" /> Manage Permissions
+                            </button>
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                                {Object.keys(adminSettings.permissions || {}).length} Custom Overrides Active
+                            </p>
+                            <p className="text-[10px] text-slate-400 italic">
+                                Users without overrides are assigned roles based on Job Titles.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Permissions Modal */}
+            {showPermissionsModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                    <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <h3 className="text-lg font-black text-slate-800 dark:text-white">User Permissions</h3>
+                            </div>
+                            <button
+                                onClick={() => setShowPermissionsModal(false)}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                            >
+                                <Plus className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                                 {Object.entries(adminSettings.permissions || {}).map(([email, role]) => (
-                                    <div key={email} className="flex items-center justify-between p-2 bg-white dark:bg-slate-900 rounded border border-slate-100 dark:border-slate-700">
+                                    <div key={email} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 group hover:border-blue-200 transition-colors">
                                         <div className="flex flex-col">
                                             <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{email}</span>
-                                            <span className="text-[10px] text-slate-400 font-mono uppercase">{role}</span>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${role === 'admin' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                                    role === 'executive' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                        role === 'manager' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
+                                                            'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                                                    }`}>
+                                                    {role}
+                                                </span>
+                                            </div>
                                         </div>
                                         <button
                                             onClick={() => {
@@ -380,57 +428,67 @@ const AdminPanel = ({
                                                 delete newPerms[email];
                                                 setAdminSettings(prev => ({ ...prev, permissions: newPerms }));
                                             }}
-                                            className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
+                                            className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
                                 ))}
                                 {Object.keys(adminSettings.permissions || {}).length === 0 && (
-                                    <div className="text-center py-4 text-xs text-slate-400 italic">No custom permissions set. Users will be assigned roles based on Job Title.</div>
+                                    <div className="text-center py-10">
+                                        <UserCog className="w-12 h-12 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
+                                        <p className="text-xs text-slate-400 italic">No custom overrides set.<br />System is using default Job Title mapping.</p>
+                                    </div>
                                 )}
                             </div>
-                            <div className="flex gap-2">
-                                <input
-                                    id="new-perm-email"
-                                    type="email"
-                                    placeholder="user@bestbuymetals.com"
-                                    className="flex-1 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-purple-500"
-                                />
-                                <select
-                                    id="new-perm-role"
-                                    className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 outline-none focus:ring-1 focus:ring-purple-500"
-                                >
-                                    <option value="viewer">Viewer</option>
-                                    <option value="rep">Rep</option>
-                                    <option value="manager">Manager</option>
-                                    <option value="admin">Admin</option>
-                                </select>
-                                <button
-                                    onClick={() => {
-                                        const email = document.getElementById('new-perm-email').value;
-                                        const role = document.getElementById('new-perm-role').value;
-                                        if (email) {
-                                            setAdminSettings(prev => ({
-                                                ...prev,
-                                                permissions: {
-                                                    ...(prev.permissions || {}),
-                                                    [email.toLowerCase()]: role
+
+                            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-3">Add Custom Override</label>
+                                <div className="flex flex-col gap-3">
+                                    <input
+                                        id="new-perm-email"
+                                        type="email"
+                                        placeholder="user@bestbuymetals.com"
+                                        className="w-full text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <div className="flex gap-2">
+                                        <select
+                                            id="new-perm-role"
+                                            className="flex-1 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value="rep">Rep</option>
+                                            <option value="manager">Manager</option>
+                                            <option value="executive">Executive</option>
+                                            <option value="admin">Admin</option>
+                                            <option value="viewer">Viewer</option>
+                                        </select>
+                                        <button
+                                            onClick={() => {
+                                                const email = document.getElementById('new-perm-email').value;
+                                                const role = document.getElementById('new-perm-role').value;
+                                                if (email) {
+                                                    setAdminSettings(prev => ({
+                                                        ...prev,
+                                                        permissions: {
+                                                            ...(prev.permissions || {}),
+                                                            [email.toLowerCase()]: role
+                                                        }
+                                                    }));
+                                                    document.getElementById('new-perm-email').value = '';
                                                 }
-                                            }));
-                                            document.getElementById('new-perm-email').value = '';
-                                        }
-                                    }}
-                                    className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                                >
-                                    <Plus className="w-5 h-5" />
-                                </button>
+                                            }}
+                                            className="px-6 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-900/20"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div >
+            )}
+        </div>
     );
 };
 

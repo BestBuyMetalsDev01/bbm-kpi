@@ -1,5 +1,5 @@
 import { TrendingUp, DollarSign, Target, Award, MapPin, Calendar, Globe } from 'lucide-react';
-import { formatCurrency, formatNumber } from '../../utils/formatters';
+import { formatCurrency, formatNumber, formatBranchName } from '../../utils/formatters';
 import GoalVisualizer from './GoalVisualizer';
 import TrendChart from './TrendChart';
 
@@ -79,6 +79,8 @@ const IndividualPanel = ({
         ?? adminSettings.repSettings?.[user.employeeId]?.personalGoal
         ?? 0;
 
+    const displayBranch = formatBranchName(user.Department);
+
     return (
         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
             {/* Header / Welcome and Visualizers */}
@@ -93,7 +95,7 @@ const IndividualPanel = ({
                         </h2>
                         <p className="text-slate-400 font-medium flex items-center gap-2">
                             <MapPin className="w-4 h-4 text-blue-400" />
-                            {user.Department || "Unknown Location"} Branch
+                            {displayBranch} Branch
                             <span className="text-slate-600">•</span>
                             <Calendar className="w-4 h-4 text-purple-400" />
                             {monthName} Performance

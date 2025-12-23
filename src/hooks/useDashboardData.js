@@ -9,6 +9,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     const [loading, setLoading] = useState(true);
     const [sortConfig, setSortConfig] = useState({ key: 'curOrderTotals', direction: 'desc' });
     const [viewMode, setViewMode] = useState(initialViewMode);
+    const [userRole, setUserRole] = useState('rep'); // rep, manager, executive, admin
     const [selectedLocation, setSelectedLocation] = useState('Knoxville');
     const [showManagerSettings, setShowManagerSettings] = useState(false);
     const [visibleRepIds, setVisibleRepIds] = useState(new Set());
@@ -81,7 +82,9 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 orderQtyYTD: "SQL: intOrdersYTD",
                 estDollarsYTD: "SQL: curQuotedYTD"
             },
-            permissions: {} // email -> role mapping
+            permissions: {
+                'jacob@bestbuymetals.com': 'admin'
+            } // email -> role mapping
         };
 
         try {
@@ -89,7 +92,10 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 // Merge saved settings ON TOP of defaults to ensure new keys exist
-                return { ...defaults, ...parsed };
+                const merged = { ...defaults, ...parsed };
+                // Ensure Jacob is ALWAYS in permissions even if local storage wiped him
+                merged.permissions = { ...defaults.permissions, ...(parsed.permissions || {}) };
+                return merged;
             }
         } catch (e) {
             console.error("Failed to parse saved settings", e);
@@ -183,21 +189,30 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
 
                     // 2. Set View Mode (Role)
                     const customRole = adminSettings.permissions?.[user.email.toLowerCase()];
-                    if (customRole) {
+                    let role = 'rep';
+
+                    if (user.email.toLowerCase() === 'jacob@bestbuymetals.com') {
+                        role = 'admin';
+                    } else if (customRole) {
                         console.log("Applying custom permission role:", customRole);
-                        setViewMode(customRole);
+                        role = customRole;
                     } else {
-                        const title = userInfo['Job Title'] || "";
-                        if (title.includes("Admin") || title.includes("VP") || title.includes("Director")) {
-                            setViewMode("admin");
-                        } else if (title.includes("Manager")) {
-                            setViewMode("manager");
-                        } else {
-                            // Default to 'rep' mode for everyone else (Sales, etc.)
-                            // This ensures they see the simplified dashboard by default
-                            setViewMode("rep");
+                        const title = (userInfo['Job Title'] || "").toLowerCase();
+                        if (title.includes("admin") || title.includes("president") || title.includes("owner")) {
+                            role = "admin";
+                        } else if (title.includes("executive") || title.includes("director") || title.includes("vp")) {
+                            role = "executive";
+                        } else if (title.includes("manager")) {
+                            role = "manager";
                         }
                     }
+
+                    setUserRole(role);
+                    // Default viewMode based on role
+                    if (role === 'rep') setViewMode('rep');
+                    else if (role === 'manager') setViewMode('viewer');
+                    else if (role === 'executive') setViewMode('comparison');
+                    else if (role === 'admin') setViewMode('admin');
 
                     // 3. Save Paradigm Employee ID (if available and not already set)
                     const empId = userInfo['Paradigm Employee ID'];
@@ -373,7 +388,16 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                     headers.forEach((header, index) => {
                         const key = keyMap[header] || header;
                         const val = row[index];
-                        obj[key] = (typeof val === 'string' && !isNaN(Number(val)) && val.trim() !== '') ? Number(val) : val;
+                        if (typeof val === 'string' && val.trim() !== '') {
+                            const cleanVal = val.replace(/[\$,]/g, '');
+                            if (!isNaN(Number(cleanVal)) && cleanVal !== '') {
+                                obj[key] = Number(cleanVal);
+                            } else {
+                                obj[key] = val;
+                            }
+                        } else {
+                            obj[key] = val;
+                        }
                     });
 
                     // Parse Date Immediately
@@ -508,10 +532,8 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
 
 
 
-        // Filter by visible reps
-        if (visibleRepIds.size > 0) {
-            result = result.filter(item => visibleRepIds.has(item.strSalesperson));
-        }
+        // Filtering by visible reps is now handled in the result reconstruction below to support "Misc / Other Reps" category
+
         const locationTotals = {};
         result.forEach(row => {
             if (!locationTotals[row.strDepartment]) locationTotals[row.strDepartment] = 0;
@@ -533,7 +555,10 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
 
             const rw = parseFloat(repSettings.daysWorked) || calculateElapsedWorkDays || 1;
             const totalDays = calculateTotalWorkDays || 20;
-            const locGoals = adminSettings.locationGoals[row.strDepartment] || {};
+
+            // Case-Insensitive Location Lookup
+            const locationMatch = Object.keys(adminSettings.locationGoals).find(k => k.toLowerCase() === row.strDepartment?.toLowerCase()) || row.strDepartment;
+            const locGoals = adminSettings.locationGoals[locationMatch] || {};
             const currentMonthIndex = rowDate ? rowDate.getMonth() : selectedDate.getMonth();
             const salesGoal = (locGoals.yearlySales || 0) * ((locGoals.monthlyPcts?.[currentMonthIndex] || 8.33) / 100);
             const targetPct = parseFloat(repSettings.targetPct) || 0;
@@ -559,13 +584,21 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 dailySalesGoal: salesToMeetGoal > 0 ? salesToMeetGoal / (totalDays - rw) : 0,
                 toDateEstGoal: estGoal * (rw / totalDays),
                 toDateEstQtyGoal: (locGoals.estQty || adminSettings.defaultEstQtyGoal) * (rw / totalDays),
-                convRateDollars: row.curQuoted > 0 ? (row.curOrderTotals / row.curQuoted) * 100 : 0,
-                convRateQty: row.intQuotes > 0 ? (row.intOrders / row.intQuotes) * 100 : 0,
+
+                // Fields required by Table / UI
+                curQuoteTotals: row.curQuoted || 0,
+                curQuoteQty: row.intQuotes || 0,
+                salesPace: rw > 0 ? (row.curOrderTotals / rw) * totalDays : 0,
+                paceToGoal: toDateSalesGoal > 0 ? (row.curOrderTotals / toDateSalesGoal) * 100 : 0,
+                closeRateDollar: row.curQuoted > 0 ? (row.curOrderTotals / row.curQuoted) * 100 : 0,
+                closeRateQty: row.intQuotes > 0 ? (row.intOrders / row.intQuotes) * 100 : 0,
+                grossProfitPct: row.curSubTotal > 0 ? (row.curInvoiceProfit / row.curSubTotal) * 100 : (row.decProfitPercent || 0),
+
                 isMisc: false
             };
         });
 
-        if (viewMode === 'manager') {
+        if (showManagerSettings) {
             const shownRows = [];
             const misc = {
                 strName: 'Misc / Other Reps', strDepartment: selectedLocation, isMisc: true,
@@ -575,14 +608,14 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             };
             let miscCount = 0;
             calculatedRows.forEach(row => {
-                if (visibleRepIds.has(row.strSalesperson)) shownRows.push(row);
+                if (!visibleRepIds.size || visibleRepIds.has(row.strSalesperson)) shownRows.push(row);
                 else {
-                    miscCount++; misc.curOrderTotals += row.curOrderTotals; misc.intOrders += row.intOrders; misc.curQuoted += row.curQuoted;
-                    misc.intQuotes += row.intQuotes; misc.curSubTotal += row.curSubTotal; misc.curInvoiceProfit += row.curInvoiceProfit;
-                    misc.intInvoices += row.intInvoices; misc.totalSalesGoal += row.totalSalesGoal; misc.toDateSalesGoal += row.toDateSalesGoal;
-                    misc.toDateVariance += row.toDateVariance; misc.monthlyVariance += row.monthlyVariance; misc.salesToMeetGoal += row.salesToMeetGoal;
-                    misc.dailySalesGoal += row.dailySalesGoal; misc.toDateEstGoal += row.toDateEstGoal; misc.toDateEstQtyGoal += row.toDateEstQtyGoal;
-                    misc.actContrib += row.actContrib; misc.expContrib += row.expContrib;
+                    miscCount++; misc.curOrderTotals += row.curOrderTotals; misc.intOrders += row.intOrders; misc.curQuoted += (row.curQuoted || 0);
+                    misc.intQuotes += (row.intQuotes || 0); misc.curSubTotal += (row.curSubTotal || 0); misc.curInvoiceProfit += (row.curInvoiceProfit || 0);
+                    misc.intInvoices += (row.intInvoices || 0); misc.totalSalesGoal += (row.totalSalesGoal || 0); misc.toDateSalesGoal += (row.toDateSalesGoal || 0);
+                    misc.toDateVariance += (row.toDateVariance || 0); misc.monthlyVariance += (row.monthlyVariance || 0); misc.salesToMeetGoal += (row.salesToMeetGoal || 0);
+                    misc.dailySalesGoal += (row.dailySalesGoal || 0); misc.toDateEstGoal += (row.toDateEstGoal || 0); misc.toDateEstQtyGoal += (row.toDateEstQtyGoal || 0);
+                    misc.actContrib += (row.actContrib || 0); misc.expContrib += (row.expContrib || 0);
                 }
             });
             misc.daysWorked = parseFloat(adminSettings.daysWorked) || calculateElapsedWorkDays;
@@ -590,12 +623,22 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             misc.convRateDollars = misc.curQuoted > 0 ? (misc.curOrderTotals / misc.curQuoted) * 100 : 0;
             misc.convRateQty = misc.intQuotes > 0 ? (misc.intOrders / misc.intQuotes) * 100 : 0;
             if (miscCount > 0) shownRows.push(misc);
-            return shownRows;
+
+            // Sort the shownRows
+            return shownRows.sort((a, b) => {
+                if (a.isMisc) return 1; if (b.isMisc) return -1;
+                const sortKey = sortConfig?.key || 'curOrderTotals';
+                const valA = a[sortKey]; const valB = b[sortKey];
+                if (valA < valB) return sortConfig?.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortConfig?.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
         }
 
         return calculatedRows.sort((a, b) => {
+            const sortKey = sortConfig?.key || 'curOrderTotals';
             if (a.isMisc) return 1; if (b.isMisc) return -1;
-            const valA = a[sortConfig.key]; const valB = b[sortConfig.key];
+            const valA = a[sortKey]; const valB = b[sortKey];
             if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
             if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
@@ -815,7 +858,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     };
 
     return {
-        data, loading, sortConfig, viewMode, setViewMode, selectedLocation, setSelectedLocation,
+        data, loading, sortConfig, viewMode, setViewMode, userRole, selectedLocation, setSelectedLocation,
         showManagerSettings, setShowManagerSettings, visibleRepIds, setVisibleRepIds,
         refreshTrigger, setRefreshTrigger, darkMode, setDarkMode,
         saveSettingsToCloud,

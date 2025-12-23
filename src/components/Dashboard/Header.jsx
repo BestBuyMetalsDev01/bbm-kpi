@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BarChart3, ChevronDown, Clock, Sun, Moon, Settings, Shield, Eye, EyeOff, User, PieChart } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { formatBranchName } from '../../utils/formatters';
 
 const Header = ({
     selectedLocation,
@@ -11,6 +12,7 @@ const Header = ({
     setRefreshTrigger,
     viewMode,
     setViewMode,
+    userRole,
     toggleAdminMode,
     setShowManagerSettings,
     showManagerSettings,
@@ -46,12 +48,12 @@ const Header = ({
                             <>
                                 <div className="relative">
                                     <button
-                                        onClick={() => setIsOpen(!isOpen)}
-                                        className="flex items-center gap-2 hover:opacity-80 transition-colors focus:outline-none"
+                                        onClick={() => (userRole === 'admin' || userRole === 'executive') && setIsOpen(!isOpen)}
+                                        className={`flex items-center gap-2 transition-colors focus:outline-none ${(userRole !== 'admin' && userRole !== 'executive') ? 'cursor-default' : 'hover:opacity-80'}`}
                                         style={{ color: themeColor }}
                                     >
-                                        {selectedLocation}
-                                        <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                                        {formatBranchName(selectedLocation)}
+                                        {(userRole === 'admin' || userRole === 'executive') && <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />}
                                     </button>
                                     {isOpen && (
                                         <div className="absolute left-0 top-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl py-2 w-48 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -61,7 +63,7 @@ const Header = ({
                                                     onClick={() => handleLocationSelect(loc)}
                                                     className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedLocation === loc ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                                                 >
-                                                    {loc}
+                                                    {formatBranchName(loc)}
                                                 </button>
                                             ))}
                                         </div>
@@ -137,44 +139,51 @@ const Header = ({
 
                     <button
                         onClick={() => setRefreshTrigger(prev => prev + 1)}
-                        className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm flex items-center gap-2"
+                        className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm flex items-center justify-center"
                         title="Refresh Data"
                     >
                         <Clock className="w-5 h-5 text-blue-500" />
-                        <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline">Refresh</span>
                     </button>
+
+                    <button
+                        onClick={() => setShowManagerSettings(!showManagerSettings)}
+                        className={`p-2 rounded-lg border transition-colors shadow-sm ${showManagerSettings ? 'bg-purple-600 border-purple-700 text-white shadow-purple-900/20' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                        title="Open Control Center (Rep & Manager)"
+                    >
+                        <Settings className="w-5 h-5" />
+                    </button>
+
+
+
 
 
                     <button
                         onClick={() => {
-                            const modes = ['admin', 'manager', 'comparison', 'rep', 'viewer'];
-                            const nextIndex = (modes.indexOf(viewMode) + 1) % modes.length;
-                            setViewMode(modes[nextIndex]);
-                            // Ensure Manager Menu visibility toggles correctly
-                            if (modes[nextIndex] === 'manager') {
-                                setShowManagerSettings(true);
-                            } else {
-                                setShowManagerSettings(false);
-                            }
+                            const availableModes = [];
+                            availableModes.push('rep', 'viewer');
+                            if (userRole === 'admin' || userRole === 'executive') availableModes.push('comparison');
 
-                            // If switching to comparison, auto-select 'All'
-                            if (modes[nextIndex] === 'comparison') {
+                            const currentIndex = availableModes.indexOf(viewMode);
+                            const nextIndex = (currentIndex + 1) % availableModes.length;
+                            const nextMode = availableModes[nextIndex];
+
+                            setViewMode(nextMode);
+
+                            if (nextMode === 'comparison') {
                                 setSelectedLocation('All');
                             }
                         }}
-                        className={`p-2 rounded-lg border transition-colors shadow-sm flex items-center gap-2 ${viewMode === 'admin' ? 'bg-red-100 border-red-200 text-red-600 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400' :
-                            viewMode === 'manager' ? 'bg-purple-100 border-purple-200 text-purple-600 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-400' :
-                                viewMode === 'comparison' ? 'bg-blue-100 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400' :
-                                    'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                            }`}
+                        className={`px-4 py-2.5 rounded-xl border transition-all shadow-md flex items-center gap-2.5 ${viewMode === 'comparison' ? 'bg-blue-100 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400' :
+                            viewMode === 'rep' ? 'bg-purple-100 border-purple-200 text-purple-600 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-400' :
+                                'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                            } cursor-pointer hover:shadow-lg active:scale-95`}
                         title={`Current Mode: ${viewMode} (Click to cycle)`}
                     >
-                        {viewMode === 'admin' ? <Shield className="w-5 h-5" /> :
-                            viewMode === 'manager' ? <BarChart3 className="w-5 h-5" /> :
-                                viewMode === 'comparison' ? <PieChart className="w-5 h-5" /> :
-                                    <Eye className="w-5 h-5" />}
-                        <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline">
-                            {viewMode === 'rep' ? 'Rep' : viewMode === 'comparison' ? 'Comparison' : viewMode}
+                        {viewMode === 'comparison' ? <PieChart className="w-6 h-6" /> :
+                            viewMode === 'rep' ? <User className="w-6 h-6" /> :
+                                <BarChart3 className="w-6 h-6" />}
+                        <span className="text-sm font-black uppercase tracking-widest hidden sm:inline">
+                            {viewMode === 'rep' ? 'My Performance' : viewMode === 'comparison' ? 'Company View' : 'Store View'}
                         </span>
                     </button>
                 </div>

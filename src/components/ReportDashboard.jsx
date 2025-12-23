@@ -19,7 +19,7 @@ import TrendChart from './Dashboard/TrendChart';
 const ReportDashboard = ({ initialViewMode }) => {
   const { user } = useAuth();
   const {
-    data, loading, sortConfig, viewMode, setViewMode, selectedLocation, setSelectedLocation,
+    data, loading, sortConfig, viewMode, setViewMode, userRole, selectedLocation, setSelectedLocation,
     showManagerSettings, setShowManagerSettings, visibleRepIds, setVisibleRepIds,
     refreshTrigger, setRefreshTrigger, darkMode, setDarkMode, adminSettings, setAdminSettings,
     processedData, branchSummary, toggleAdminMode, monthNames, handleSort,
@@ -55,145 +55,155 @@ const ReportDashboard = ({ initialViewMode }) => {
   const locationKeys = Object.keys(adminSettings.locationGoals);
 
   const columns = [
-
     { key: 'totalSalesGoal', label: 'Sales Goals', type: 'currency', tooltip: adminSettings.formulas.totalSalesGoal },
     { key: 'curOrderTotals', label: 'Sales Orders', type: 'currency', tooltip: adminSettings.formulas.salesOrders },
-    { key: 'intOrders', label: 'Order Qty', type: 'number', tooltip: adminSettings.formulas.orderQty },
-    { key: 'curQuoted', label: 'Estimates', type: 'currency', tooltip: adminSettings.formulas.estDollars },
-    { key: 'curSubTotal', label: 'Invoice $', type: 'currency', tooltip: adminSettings.formulas.invoiceDollars },
-    { key: 'performanceRates', label: 'Rates', type: 'percent', tooltip: 'Performance Rates: Profit %, $ Conversion, and Qty Conversion' },
+    { key: 'curQuoteTotals', label: 'Quotes Created', type: 'currency', tooltip: adminSettings.formulas.quotesCreated },
+    { key: 'curQuoteQty', label: 'Quotes Qty', type: 'number', tooltip: adminSettings.formulas.quotesQty },
+    { key: 'salesPace', label: 'Month Pace', type: 'currency', tooltip: adminSettings.formulas.monthPace },
+    { key: 'paceToGoal', label: 'Pace vs Goal', type: 'percentage_trend', tooltip: adminSettings.formulas.paceVsGoal },
+    { key: 'closeRateDollar', label: '$ Close Rate', type: 'percentage', tooltip: adminSettings.formulas.dollarCloseRate },
+    { key: 'closeRateQty', label: '# Close Rate', type: 'percentage', tooltip: adminSettings.formulas.qtyCloseRate },
+    { key: 'grossProfitPct', label: 'GP %', type: 'percentage', tooltip: adminSettings.formulas.gpPct }
   ];
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-xs">Loading Dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <>
-      <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark bg-slate-950' : 'bg-slate-50'} relative`}>
-        <ChristmasLights />
-        {weather.isSnowing && <SnowEffect />}
-        {isGoalReached && <Fireworks />}
+    <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} font-sans antialiased overflow-x-hidden relative`}>
+      <SnowEffect weather={weather} />
+      <ChristmasLights weather={weather} />
+      {isGoalReached && <Fireworks />}
 
-        <div className="relative z-10 p-2 sm:p-4 md:p-6 lg:p-8 max-w-[1920px] mx-auto space-y-6 font-sans text-slate-800 dark:text-slate-100 transition-colors duration-300">
-
+      <div className="relative z-20">
+        {/* Header Container - Strategic spacing to fix the "too high" feel */}
+        <div className="max-w-[1600px] mx-auto pt-12 pb-6 px-4 sm:px-6 lg:px-8">
           <Header
             selectedLocation={selectedLocation}
             setSelectedLocation={setSelectedLocation}
             locationKeys={locationKeys}
-            darkMode={darkMode}
-            setDarkMode={setDarkMode}
-            setRefreshTrigger={setRefreshTrigger}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            toggleAdminMode={toggleAdminMode}
-            setShowManagerSettings={setShowManagerSettings}
-            showManagerSettings={showManagerSettings}
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
             dateMode={dateMode}
             setDateMode={setDateMode}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            setRefreshTrigger={setRefreshTrigger}
+            user={user}
+            userRole={userRole}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            showManagerSettings={showManagerSettings}
+            setShowManagerSettings={setShowManagerSettings}
           />
+        </div>
 
-          {viewMode === 'admin' ? (
-            <AdminPanel
-              adminSettings={adminSettings}
-              setAdminSettings={setAdminSettings}
-              processedData={processedData}
-              setViewMode={setViewMode}
-              setSelectedLocation={setSelectedLocation}
-              monthNames={monthNames}
-              newHoliday={newHoliday}
-              setNewHoliday={setNewHoliday}
-              handleAddHoliday={handleAddHoliday}
-              handleDeleteHoliday={handleDeleteHoliday}
-              handleLocationGoalChange={handleLocationGoalChange}
-              handleLocationMonthPctChange={handleLocationMonthPctChange}
-              handleFormulaChange={handleFormulaChange}
-              handleTriggerAppsScript={handleTriggerAppsScript}
-              triggerStatus={triggerStatus}
-              saveSettingsToCloud={saveSettingsToCloud}
-              saveStatus={saveStatus}
-            />
+        <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 relative">
+          {showManagerSettings && (
+            <div className="z-[100] relative">
+              <ManagerPanel
+                selectedLocation={selectedLocation}
+                data={data}
+                visibleRepIds={visibleRepIds}
+                toggleRepVisibility={toggleRepVisibility}
+                adminSettings={adminSettings}
+                setAdminSettings={setAdminSettings}
+                saveSettingsToCloud={saveSettingsToCloud}
+                saveStatus={saveStatus}
+                calculateElapsedWorkDays={calculateElapsedWorkDays}
+                user={user}
+                userRole={userRole}
+                monthNames={monthNames}
+                selectedDate={selectedDate}
+                processedData={processedData}
+                branchSummary={branchSummary}
+                fullHistory={data}
+                setViewMode={setViewMode}
+                newHoliday={newHoliday}
+                setNewHoliday={setNewHoliday}
+                handleAddHoliday={handleAddHoliday}
+                handleDeleteHoliday={handleDeleteHoliday}
+                handleLocationGoalChange={handleLocationGoalChange}
+                handleLocationMonthPctChange={handleLocationMonthPctChange}
+                handleFormulaChange={handleFormulaChange}
+                handleTriggerAppsScript={handleTriggerAppsScript}
+                triggerStatus={triggerStatus}
+                setSelectedLocation={setSelectedLocation}
+              />
+            </div>
+          )}
 
-          ) : viewMode === 'rep' ? (
-            <IndividualPanel
-              processedData={processedData}
-              fullHistory={data}
-              branchSummary={branchSummary}
-              user={user}
-              monthName={monthNames[selectedDate.getMonth()]}
-              adminSettings={adminSettings}
-              selectedDate={selectedDate}
-            />
+          {viewMode === 'rep' ? (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <IndividualPanel
+                processedData={processedData}
+                fullHistory={data}
+                branchSummary={branchSummary}
+                user={user}
+                monthName={monthNames[selectedDate.getMonth()]}
+                adminSettings={adminSettings}
+                selectedDate={selectedDate}
+              />
+            </div>
+          ) : viewMode === 'comparison' ? (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <SummaryCards branchSummary={branchSummary} dateMode={dateMode} selectedLocation="All" />
+              <LocationComparisonTable
+                data={data}
+                adminSettings={adminSettings}
+                locationKeys={locationKeys}
+                selectedDate={selectedDate}
+                calculateTotalWorkDays={calculateTotalWorkDays}
+                calculateElapsedWorkDays={calculateElapsedWorkDays}
+                dateMode={dateMode}
+                setDateMode={setDateMode}
+              />
+              <LocationTrendChart data={data} selectedDate={selectedDate} />
+            </div>
           ) : (
-            <>
-              {showManagerSettings && (
-                <ManagerPanel
-                  selectedLocation={selectedLocation}
-                  data={data}
-                  visibleRepIds={visibleRepIds}
-                  toggleRepVisibility={toggleRepVisibility}
-                  adminSettings={adminSettings}
-                  setAdminSettings={setAdminSettings}
-                  saveSettingsToCloud={saveSettingsToCloud}
-                  saveStatus={saveStatus}
-                  calculateElapsedWorkDays={calculateElapsedWorkDays}
-                />
-              )}
-
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
               <SummaryCards branchSummary={branchSummary} dateMode={dateMode} selectedLocation={selectedLocation} />
 
-              {selectedLocation === 'All' && (
-                <div className="space-y-8 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  {/* TOP TOGGLE */}
-                  <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <PieChart className="w-5 h-5 text-blue-500" />
-                        Company-Wide Comparison
-                      </h2>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Performance breakdown for {dateMode === 'monthly' ? selectedDate.toLocaleString('default', { month: 'long', year: 'numeric' }) : `${selectedDate.getFullYear()} Year to Date`}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
-                    {/* LEFT SIDE: STACKED GRAPHS */}
-                    <div className="xl:col-span-5 space-y-8">
-                      <TrendChart data={data} />
-                      <LocationTrendChart data={data} selectedDate={selectedDate} />
-                    </div>
-
-                    {/* RIGHT SIDE: TABLE DATA */}
-                    <div className="xl:col-span-7">
-                      <LocationComparisonTable
-                        data={data}
-                        adminSettings={adminSettings}
-                        locationKeys={locationKeys}
-                        selectedDate={selectedDate}
-                        calculateTotalWorkDays={calculateTotalWorkDays}
-                        calculateElapsedWorkDays={calculateElapsedWorkDays}
-                        dateMode={dateMode}
-                        setDateMode={setDateMode}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {selectedLocation !== 'All' && (
+              <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <MainTable
                   processedData={processedData}
-                  loading={loading}
-                  sortConfig={sortConfig}
-                  handleSort={handleSort}
                   columns={columns}
+                  handleSort={handleSort}
+                  sortConfig={sortConfig}
                   adminSettings={adminSettings}
+                  selectedLocation={selectedLocation}
+                  loading={loading}
                 />
-              )}
-            </>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <TrendChart data={data} location={selectedLocation} />
+              </div>
+            </div>
           )}
-        </div>
+        </main>
       </div>
-    </>
+
+      {triggerStatus?.loading && (
+        <div className="fixed bottom-8 right-8 z-[200] animate-in slide-in-from-right-8 duration-500">
+          <div className="bg-slate-900 border border-slate-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4">
+            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest">Cloud Update</p>
+              <p className="text-[10px] text-slate-400 font-bold">Syncing global metrics...</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

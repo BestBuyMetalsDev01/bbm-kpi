@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { formatCurrency, formatPercent } from '../../utils/formatters';
+import { formatCurrency, formatPercent, formatBranchName } from '../../utils/formatters';
 import { ArrowUp, ArrowDown, MapPin } from 'lucide-react';
 
 const LocationComparisonTable = ({
@@ -69,31 +69,35 @@ const LocationComparisonTable = ({
 
         // 2. Aggregate Actuals from Data
         data.forEach(row => {
-            const loc = row.strDepartment;
+            const rawLoc = row.strDepartment;
+            if (!rawLoc) return;
+
+            // Find matching key case-insensitively
+            const locMatch = locationKeys.find(k => k.toLowerCase() === rawLoc.toLowerCase());
             const rowDate = row._parsedDate;
-            if (!rowDate || !stats[loc]) return;
+            if (!rowDate || !locMatch || !stats[locMatch]) return;
 
             const isSameYear = rowDate.getFullYear() === currentYear;
             const isSameMonth = rowDate.getMonth() === currentMonthIndex;
 
             if (mode === 'monthly') {
                 if (isSameYear && isSameMonth) {
-                    stats[loc].sales += (row.curOrderTotals || 0);
-                    stats[loc].estDollars += (row.curQuoted || 0);
-                    stats[loc].invoiced += (row.curSubTotal || 0);
-                    stats[loc].profit += (row.curInvoiceProfit || 0);
-                    stats[loc].orderQty += (row.intOrders || 0);
-                    stats[loc].estQty += (row.intQuotes || 0);
+                    stats[locMatch].sales += (row.curOrderTotals || 0);
+                    stats[locMatch].estDollars += (row.curQuoted || 0);
+                    stats[locMatch].invoiced += (row.curSubTotal || 0);
+                    stats[locMatch].profit += (row.curInvoiceProfit || 0);
+                    stats[locMatch].orderQty += (row.intOrders || 0);
+                    stats[locMatch].estQty += (row.intQuotes || 0);
                 }
             } else {
                 // YTD
                 if (isSameYear && rowDate.getMonth() <= currentMonthIndex) {
-                    stats[loc].sales += (row.curOrderTotals || 0);
-                    stats[loc].estDollars += (row.curQuoted || 0);
-                    stats[loc].invoiced += (row.curSubTotal || 0);
-                    stats[loc].profit += (row.curInvoiceProfit || 0);
-                    stats[loc].orderQty += (row.intOrders || 0);
-                    stats[loc].estQty += (row.intQuotes || 0);
+                    stats[locMatch].sales += (row.curOrderTotals || 0);
+                    stats[locMatch].estDollars += (row.curQuoted || 0);
+                    stats[locMatch].invoiced += (row.curSubTotal || 0);
+                    stats[locMatch].profit += (row.curInvoiceProfit || 0);
+                    stats[locMatch].orderQty += (row.intOrders || 0);
+                    stats[locMatch].estQty += (row.intQuotes || 0);
                 }
             }
         });
@@ -133,7 +137,7 @@ const LocationComparisonTable = ({
                         {locationData.map((row) => (
                             <tr key={row.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                                 <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">
-                                    {row.name}
+                                    {formatBranchName(row.name)}
                                 </td>
                                 <td className="px-6 py-4 text-right font-black text-slate-800 dark:text-white text-base">
                                     {formatCurrency(row.sales)}

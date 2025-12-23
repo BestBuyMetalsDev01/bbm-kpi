@@ -1,6 +1,6 @@
 import React from 'react';
 import { TrendingUp, DollarSign, Activity, Target, PieChart, CreditCard, Percent, FileText } from 'lucide-react';
-import { formatCurrency, formatPercent } from '../../utils/formatters';
+import { formatCurrency, formatPercent, formatBranchName } from '../../utils/formatters';
 
 const MiniStat = ({ label, value, goal, success, color }) => {
     let styleClass = "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300";
@@ -28,7 +28,7 @@ const MiniStat = ({ label, value, goal, success, color }) => {
 const SummaryCards = ({ branchSummary, dateMode = 'monthly', selectedLocation = 'All' }) => {
     const isYTD = dateMode === 'ytd';
     const isAll = selectedLocation === 'All';
-    const prefix = isAll ? "Company" : (selectedLocation === 'National' ? "National Sales" : selectedLocation);
+    const prefix = isAll ? "Company" : formatBranchName(selectedLocation);
 
     const getSalesTitle = () => {
         if (isYTD) return `YTD ${prefix}`;
