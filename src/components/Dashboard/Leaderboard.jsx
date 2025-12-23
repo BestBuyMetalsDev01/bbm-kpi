@@ -4,16 +4,24 @@ import { formatCurrency, formatPercent, formatBranchName } from '../../utils/for
 
 const Leaderboard = ({ processedData, productsData = [] }) => {
     // Top 5 Revenue Leaders from processedData
+    // Tie-breaker: Profit Percent, then Alphabetical
     const revenueLeaders = [...processedData]
         .filter(r => !r.isMisc && r.strSalesperson !== 'ECOMMERCE')
-        .sort((a, b) => b.curOrderTotals - a.curOrderTotals)
-        .slice(0, 5);
+        .sort((a, b) => {
+            if (b.curOrderTotals !== a.curOrderTotals) return b.curOrderTotals - a.curOrderTotals;
+            if (b.decProfitPercent !== a.decProfitPercent) return b.decProfitPercent - a.decProfitPercent;
+            return (a.strName || "").localeCompare(b.strName || "");
+        });
 
     // Top 5 Profit Leaders from processedData (Min $1000 revenue for accuracy)
+    // Tie-breaker: Total Revenue, then Alphabetical
     const profitLeaders = [...processedData]
         .filter(r => !r.isMisc && r.strSalesperson !== 'ECOMMERCE' && r.curOrderTotals > 1000)
-        .sort((a, b) => b.decProfitPercent - a.decProfitPercent)
-        .slice(0, 5);
+        .sort((a, b) => {
+            if (b.decProfitPercent !== a.decProfitPercent) return b.decProfitPercent - a.decProfitPercent;
+            if (b.curOrderTotals !== a.curOrderTotals) return b.curOrderTotals - a.curOrderTotals;
+            return (a.strName || "").localeCompare(b.strName || "");
+        });
 
     // Helper to find value by flexible key (case-insensitive, ignores spaces)
     const getVal = (obj, key) => {
@@ -30,7 +38,8 @@ const Leaderboard = ({ processedData, productsData = [] }) => {
             if (rep.strSalesperson && !rep.isMisc) {
                 map.set(rep.strSalesperson, {
                     name: rep.strName,
-                    branch: rep.strDepartment
+                    branch: rep.strDepartment,
+                    revenue: rep.curOrderTotals
                 });
             }
         });
@@ -57,9 +66,35 @@ const Leaderboard = ({ processedData, productsData = [] }) => {
             .sort((a, b) => {
                 const qtyA = parseFloat(getVal(a, 'Qty Ordered') || 0) || 0;
                 const qtyB = parseFloat(getVal(b, 'Qty Ordered') || 0) || 0;
-                return qtyB - qtyA;
+                if (qtyB !== qtyA) return qtyB - qtyA;
+
+                // Tie-breaker: Total Revenue
+                const sidA = getVal(a, 'Salesperson ID') || getVal(a, 'SalespersonID');
+                const sidB = getVal(b, 'Salesperson ID') || getVal(b, 'SalespersonID');
+                const revA = repInfoMap.get(sidA)?.revenue || 0;
+                const revB = repInfoMap.get(sidB)?.revenue || 0;
+                if (revB !== revA) return revB - revA;
+
+                // Tie-breaker: Alphabetical
+                return (a.displayName || "").localeCompare(b.displayName || "");
             });
     }, [productsData, repInfoMap]);
+
+    // Helper to calculate "Golf" Ranks (T1, T2, etc)
+    const getGolfRank = (sortedData, index, valueKey, getVal) => {
+        const currentQty = parseFloat(getVal(sortedData[index], valueKey) || 0);
+
+        // Find how many people have this same quantity
+        const ties = sortedData.filter(r => parseFloat(getVal(r, valueKey) || 0) === currentQty);
+
+        // Find the first occurrence (this is the base rank)
+        const baseRank = sortedData.findIndex(r => parseFloat(getVal(r, valueKey) || 0) === currentQty) + 1;
+
+        if (ties.length > 1) {
+            return `T${baseRank}`;
+        }
+        return baseRank.toString();
+    };
 
     // Logging for Product of the Month Data
     React.useEffect(() => {
@@ -115,25 +150,32 @@ const Leaderboard = ({ processedData, productsData = [] }) => {
                     <div className="p-2">
                         {productMonthReps.length > 0 ? (
                             <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {productMonthReps.slice(0, 5).map((rep, i) => (
-                                    <div key={i} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-amber-400 text-amber-950 ring-4 ring-amber-400/20' :
-                                            i === 1 ? 'bg-slate-300 text-slate-900' :
-                                                i === 2 ? 'bg-orange-400 text-orange-950' :
-                                                    'bg-slate-100 dark:bg-slate-700 text-slate-500'
-                                            }`}>
-                                            {i + 1}
+                                {productMonthReps.slice(0, 5).map((rep, i) => {
+                                    const rank = getGolfRank(productMonthReps, i, 'Qty Ordered', getVal);
+                                    const isGold = rank === '1' || rank === 'T1';
+                                    const isSilver = rank === '2' || rank === 'T2';
+                                    const isBronze = rank === '3' || rank === 'T3';
+
+                                    return (
+                                        <div key={i} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${isGold ? 'bg-amber-400 text-amber-950 ring-4 ring-amber-400/20' :
+                                                isSilver ? 'bg-slate-300 text-slate-900' :
+                                                    isBronze ? 'bg-orange-400 text-orange-950' :
+                                                        'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                                                }`}>
+                                                {rank}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-black text-slate-900 dark:text-white leading-none">{rep.displayName}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{formatBranchName(rep.displayBranch)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-black text-blue-600 dark:text-blue-400">{getVal(rep, 'Qty Ordered') || 0}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Qty Ordered</p>
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <p className="font-black text-slate-900 dark:text-white leading-none">{rep.displayName}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{formatBranchName(rep.displayBranch)}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-black text-blue-600 dark:text-blue-400">{getVal(rep, 'Qty Ordered') || 0}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Qty Ordered</p>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div className="py-20 text-center">
@@ -159,25 +201,32 @@ const Leaderboard = ({ processedData, productsData = [] }) => {
                     </div>
 
                     <div className="p-2">
-                        {revenueLeaders.map((leader, i) => (
-                            <div key={leader.strSalesperson} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-amber-400 text-amber-950' :
-                                    i === 1 ? 'bg-slate-300 text-slate-900' :
-                                        i === 2 ? 'bg-orange-400 text-orange-950' :
-                                            'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                                    }`}>
-                                    {i + 1}
+                        {revenueLeaders.slice(0, 5).map((leader, i) => {
+                            const rank = getGolfRank(revenueLeaders, i, 'curOrderTotals', (obj, key) => obj[key]);
+                            const isGold = rank === '1' || rank === 'T1';
+                            const isSilver = rank === '2' || rank === 'T2';
+                            const isBronze = rank === '3' || rank === 'T3';
+
+                            return (
+                                <div key={leader.strSalesperson} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${isGold ? 'bg-amber-400 text-amber-950' :
+                                        isSilver ? 'bg-slate-300 text-slate-900' :
+                                            isBronze ? 'bg-orange-400 text-orange-950' :
+                                                'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                        }`}>
+                                        {rank}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-black text-slate-900 dark:text-white leading-none">{leader.strName}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{formatBranchName(leader.strDepartment)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-black text-amber-600 dark:text-amber-500">{formatCurrency(leader.curOrderTotals)}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">MTD Total</p>
+                                    </div>
                                 </div>
-                                <div className="flex-1">
-                                    <p className="font-black text-slate-900 dark:text-white leading-none">{leader.strName}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{formatBranchName(leader.strDepartment)}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-black text-amber-600 dark:text-amber-500">{formatCurrency(leader.curOrderTotals)}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">MTD Total</p>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
                 {/* Profit Powerhouse Card */}
@@ -195,25 +244,32 @@ const Leaderboard = ({ processedData, productsData = [] }) => {
                     </div>
 
                     <div className="p-2">
-                        {profitLeaders.map((leader, i) => (
-                            <div key={leader.strSalesperson} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-emerald-400 text-emerald-950 ring-4 ring-emerald-400/20' :
-                                    i === 1 ? 'bg-slate-300 text-slate-900' :
-                                        i === 2 ? 'bg-teal-400 text-teal-950' :
-                                            'bg-slate-100 dark:bg-slate-700 text-slate-500'
-                                    }`}>
-                                    {i + 1}
+                        {profitLeaders.slice(0, 5).map((leader, i) => {
+                            const rank = getGolfRank(profitLeaders, i, 'decProfitPercent', (obj, key) => obj[key]);
+                            const isGold = rank === '1' || rank === 'T1';
+                            const isSilver = rank === '2' || rank === 'T2';
+                            const isBronze = rank === '3' || rank === 'T3';
+
+                            return (
+                                <div key={leader.strSalesperson} className="flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${isGold ? 'bg-emerald-400 text-emerald-950 ring-4 ring-emerald-400/20' :
+                                        isSilver ? 'bg-slate-300 text-slate-900' :
+                                            isBronze ? 'bg-teal-400 text-teal-950' :
+                                                'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                                        }`}>
+                                        {rank}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-black text-slate-900 dark:text-white leading-none">{leader.strName}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{formatBranchName(leader.strDepartment)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-black text-emerald-600 dark:text-emerald-500">{formatPercent(leader.decProfitPercent)}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Margin %</p>
+                                    </div>
                                 </div>
-                                <div className="flex-1">
-                                    <p className="font-black text-slate-900 dark:text-white leading-none">{leader.strName}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{formatBranchName(leader.strDepartment)}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-black text-emerald-600 dark:text-emerald-500">{formatPercent(leader.decProfitPercent)}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Profit</p>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             </div>

@@ -14,7 +14,8 @@ import { formatCurrency } from '../../utils/formatters';
 const LocationTrendChart = ({ data, selectedDate }) => {
     const [isMounted, setIsMounted] = useState(false);
     useEffect(() => {
-        setIsMounted(true);
+        const timer = setTimeout(() => setIsMounted(true), 100);
+        return () => clearTimeout(timer);
     }, []);
 
     if (!data || data.length === 0) return <div className="p-8 text-center text-slate-400">No data available for comparison.</div>;
