@@ -89,31 +89,17 @@ const IndividualPanel = ({
                     <div className="absolute top-0 right-0 p-4 opacity-10">
                         <Award className="w-64 h-64" />
                     </div>
-                    <div className="relative z-10 flex items-center gap-6">
-                        {user?.picture && (
-                            <div className="flex-shrink-0">
-                                <div className="w-20 h-20 rounded-full border-4 border-white/20 shadow-2xl overflow-hidden backdrop-blur-sm">
-                                    <img
-                                        src={user.picture}
-                                        alt={user.name}
-                                        className="w-full h-full object-cover"
-                                        referrerPolicy="no-referrer"
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        <div>
-                            <h2 className="text-3xl font-black mb-2 flex items-center gap-3">
-                                Welcome, {user.name?.split(' ')[0]}! 👋
-                            </h2>
-                            <p className="text-slate-300 font-medium flex items-center gap-2">
-                                <MapPin className="w-4 h-4 text-blue-400" />
-                                {displayBranch} Branch
-                                <span className="text-slate-500">•</span>
-                                <Calendar className="w-4 h-4 text-purple-400" />
-                                {monthName} Performance
-                            </p>
-                        </div>
+                    <div className="relative z-10">
+                        <h2 className="text-3xl font-black mb-2 flex items-center gap-3">
+                            Welcome, {user.name?.split(' ')[0]}! 👋
+                        </h2>
+                        <p className="text-slate-400 font-medium flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-blue-400" />
+                            {displayBranch} Branch
+                            <span className="text-slate-600">•</span>
+                            <Calendar className="w-4 h-4 text-purple-400" />
+                            {monthName} Performance
+                        </p>
                     </div>
                 </div>
 
@@ -216,7 +202,7 @@ const IndividualPanel = ({
             {/* Trend Chart Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
-                    <TrendChart data={myHistory} />
+                    <TrendChart data={myHistory} repName={user.name} />
                 </div>
 
                 {/* Recent Activity / Detailed Table */}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     LineChart,
     Line,
@@ -12,6 +12,11 @@ import {
 import { formatCurrency } from '../../utils/formatters';
 
 const LocationTrendChart = ({ data, selectedDate }) => {
+    const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
     if (!data || data.length === 0) return <div className="p-8 text-center text-slate-400">No data available for comparison.</div>;
 
     const transformData = () => {
@@ -58,47 +63,53 @@ const LocationTrendChart = ({ data, selectedDate }) => {
                 </span>
             </h3>
 
-            <ResponsiveContainer width="100%" height="85%">
-                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
-                    <XAxis
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: '#64748b', fontSize: 12 }}
-                        dy={10}
-                    />
-                    <YAxis
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: '#64748b', fontSize: 12 }}
-                        tickFormatter={(value) => `$${value / 1000}k`}
-                    />
-                    <Tooltip
-                        contentStyle={{ backgroundColor: '#1e293b', borderRadius: '8px', border: 'none', color: '#fff' }}
-                        itemStyle={{ color: '#e2e8f0' }}
-                        formatter={(value) => formatCurrency(value)}
-                        labelStyle={{ fontWeight: 'bold', color: '#fff', marginBottom: '0.5rem' }}
-                        cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
-                    />
-                    <Legend
-                        iconType="circle"
-                        wrapperStyle={{ paddingTop: '20px' }}
-                    />
-                    {locations.map((loc, index) => (
-                        <Line
-                            key={loc}
-                            type="monotone"
-                            dataKey={loc}
-                            stroke={colors[index % colors.length]}
-                            strokeWidth={2}
-                            dot={{ r: 3, fill: colors[index % colors.length], strokeWidth: 1, stroke: '#fff' }}
-                            activeDot={{ r: 5 }}
-                            connectNulls
+            {isMounted ? (
+                <ResponsiveContainer width="100%" height="85%">
+                    <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
+                        <XAxis
+                            dataKey="name"
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fill: '#64748b', fontSize: 12 }}
+                            dy={10}
                         />
-                    ))}
-                </LineChart>
-            </ResponsiveContainer>
+                        <YAxis
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fill: '#64748b', fontSize: 12 }}
+                            tickFormatter={(value) => `$${value / 1000}k`}
+                        />
+                        <Tooltip
+                            contentStyle={{ backgroundColor: '#1e293b', borderRadius: '8px', border: 'none', color: '#fff' }}
+                            itemStyle={{ color: '#e2e8f0' }}
+                            formatter={(value) => formatCurrency(value)}
+                            labelStyle={{ fontWeight: 'bold', color: '#fff', marginBottom: '0.5rem' }}
+                            cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
+                        />
+                        <Legend
+                            iconType="circle"
+                            wrapperStyle={{ paddingTop: '20px' }}
+                        />
+                        {locations.map((loc, index) => (
+                            <Line
+                                key={loc}
+                                type="monotone"
+                                dataKey={loc}
+                                stroke={colors[index % colors.length]}
+                                strokeWidth={2}
+                                dot={{ r: 3, fill: colors[index % colors.length], strokeWidth: 1, stroke: '#fff' }}
+                                activeDot={{ r: 5 }}
+                                connectNulls
+                            />
+                        ))}
+                    </LineChart>
+                </ResponsiveContainer>
+            ) : (
+                <div className="w-full h-[85%] flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+                </div>
+            )}
         </div>
     );
 };

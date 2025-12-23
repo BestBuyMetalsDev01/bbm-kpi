@@ -69,35 +69,31 @@ const LocationComparisonTable = ({
 
         // 2. Aggregate Actuals from Data
         data.forEach(row => {
-            const rawLoc = row.strDepartment;
-            if (!rawLoc) return;
-
-            // Find matching key case-insensitively
-            const locMatch = locationKeys.find(k => k.toLowerCase() === rawLoc.toLowerCase());
+            const loc = row.strDepartment;
             const rowDate = row._parsedDate;
-            if (!rowDate || !locMatch || !stats[locMatch]) return;
+            if (!rowDate || !stats[loc]) return;
 
             const isSameYear = rowDate.getFullYear() === currentYear;
             const isSameMonth = rowDate.getMonth() === currentMonthIndex;
 
             if (mode === 'monthly') {
                 if (isSameYear && isSameMonth) {
-                    stats[locMatch].sales += (row.curOrderTotals || 0);
-                    stats[locMatch].estDollars += (row.curQuoted || 0);
-                    stats[locMatch].invoiced += (row.curSubTotal || 0);
-                    stats[locMatch].profit += (row.curInvoiceProfit || 0);
-                    stats[locMatch].orderQty += (row.intOrders || 0);
-                    stats[locMatch].estQty += (row.intQuotes || 0);
+                    stats[loc].sales += (row.curOrderTotals || 0);
+                    stats[loc].estDollars += (row.curQuoted || 0);
+                    stats[loc].invoiced += (row.curSubTotal || 0);
+                    stats[loc].profit += (row.curInvoiceProfit || 0);
+                    stats[loc].orderQty += (row.intOrders || 0);
+                    stats[loc].estQty += (row.intQuotes || 0);
                 }
             } else {
                 // YTD
                 if (isSameYear && rowDate.getMonth() <= currentMonthIndex) {
-                    stats[locMatch].sales += (row.curOrderTotals || 0);
-                    stats[locMatch].estDollars += (row.curQuoted || 0);
-                    stats[locMatch].invoiced += (row.curSubTotal || 0);
-                    stats[locMatch].profit += (row.curInvoiceProfit || 0);
-                    stats[locMatch].orderQty += (row.intOrders || 0);
-                    stats[locMatch].estQty += (row.intQuotes || 0);
+                    stats[loc].sales += (row.curOrderTotals || 0);
+                    stats[loc].estDollars += (row.curQuoted || 0);
+                    stats[loc].invoiced += (row.curSubTotal || 0);
+                    stats[loc].profit += (row.curInvoiceProfit || 0);
+                    stats[loc].orderQty += (row.intOrders || 0);
+                    stats[loc].estQty += (row.intQuotes || 0);
                 }
             }
         });

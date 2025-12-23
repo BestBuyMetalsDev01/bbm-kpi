@@ -15,6 +15,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     const [visibleRepIds, setVisibleRepIds] = useState(new Set());
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [triggerStatus, setTriggerStatus] = useState({ loading: false, error: null, success: false });
+    const [productsData, setProductsData] = useState([]);
 
     const [darkMode, setDarkMode] = useState(() => {
         return localStorage.getItem('bbm_kpi_dark_mode') === 'true';
@@ -388,16 +389,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                     headers.forEach((header, index) => {
                         const key = keyMap[header] || header;
                         const val = row[index];
-                        if (typeof val === 'string' && val.trim() !== '') {
-                            const cleanVal = val.replace(/[\$,]/g, '');
-                            if (!isNaN(Number(cleanVal)) && cleanVal !== '') {
-                                obj[key] = Number(cleanVal);
-                            } else {
-                                obj[key] = val;
-                            }
-                        } else {
-                            obj[key] = val;
-                        }
+                        obj[key] = (typeof val === 'string' && !isNaN(Number(val)) && val.trim() !== '') ? Number(val) : val;
                     });
 
                     // Parse Date Immediately
@@ -429,6 +421,28 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
 
                 setData(rows);
                 initVisibleReps(rows);
+
+                // Fetch Product of the Month Data
+                try {
+                    const separator = url.includes('?') ? '&' : '?';
+                    const productsUrl = `${url}${separator}sheet=Product_Of_The_Month`;
+                    const productsResponse = await fetch(productsUrl);
+                    const pData = await productsResponse.json();
+                    if (pData && Array.isArray(pData) && pData.length > 1) {
+                        const pHeaders = pData[0];
+                        const pRows = pData.slice(1).map(row => {
+                            const obj = {};
+                            pHeaders.forEach((h, i) => {
+                                obj[h] = row[i];
+                            });
+                            return obj;
+                        });
+                        setProductsData(pRows);
+                    }
+                } catch (pe) {
+                    console.warn("Failed to fetch Product of the Month data:", pe);
+                }
+
                 setLoading(false);
             } catch (error) {
                 generateMockData();
@@ -487,29 +501,15 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         setTimeout(fetchSheetData, 600);
     }, [adminSettings.googleSheetUrl, refreshTrigger]);
 
-    const processedData = useMemo(() => {
+    const companyProcessedData = useMemo(() => {
         if (!data || data.length === 0) return [];
 
-        // 1. Determine "Current" Period from Data (Max Date)
-        // If no date column, assume all data is current (legacy mode)
-        // Use pre-parsed dates
         const validRows = data.filter(r => r._parsedDate instanceof Date && !isNaN(r._parsedDate));
 
-        console.log("Filtering Processed Data. Total:", data.length, "ValidDates:", validRows.length);
-
-        // Default to EMPTY if no dates found, to prevents "Lifetime" masquerading as "Month"
         let currentPeriodData = [];
-
         if (validRows.length > 0) {
-            // STRICT MODE: User wants "Selected Month of Selected Year"
-            // Defaulted to new Date() initially, but can be changed via UI
             const targetMonth = selectedDate.getMonth();
             const targetYear = selectedDate.getFullYear();
-
-            console.log("Target Filter:", targetMonth + 1, "/", targetYear);
-            console.log("Sample Date:", validRows[0]._parsedDate.toString());
-
-            // Filter
             currentPeriodData = data.filter(d => {
                 const dDate = d._parsedDate;
                 if (!dDate) return false;
@@ -518,47 +518,30 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 }
                 return dDate.getMonth() === targetMonth && dDate.getFullYear() === targetYear;
             });
-            console.log("Filtered Result Count:", currentPeriodData.length, "Mode:", dateMode);
         } else {
-            console.warn("No valid dates found in data. returning Empty Set to avoid confusion.");
-            // Only fall back to ALL data if we are absolutely sure it's legacy? 
-            // deciding to show 0 is safer than showing misleading data.
+            return [];
         }
-
-        let result = [...currentPeriodData];
-        if (selectedLocation !== 'All') {
-            result = result.filter(item => item.strDepartment === selectedLocation);
-        }
-
-
-
-        // Filtering by visible reps is now handled in the result reconstruction below to support "Misc / Other Reps" category
 
         const locationTotals = {};
-        result.forEach(row => {
+        currentPeriodData.forEach(row => {
             if (!locationTotals[row.strDepartment]) locationTotals[row.strDepartment] = 0;
             locationTotals[row.strDepartment] += row.curOrderTotals;
         });
 
-        const calculatedRows = result.map(row => {
+        return currentPeriodData.map(row => {
             const rowDate = row._parsedDate;
             let repSettings = adminSettings.repSettings?.[row.strSalesperson] || {};
 
-            // Check for monthly override
             if (rowDate) {
                 const monthKey = `${rowDate.getFullYear()}-${String(rowDate.getMonth() + 1).padStart(2, '0')}`;
                 if (repSettings.months?.[monthKey]) {
-                    // Start with base settings, overlay monthly settings
                     repSettings = { ...repSettings, ...repSettings.months[monthKey] };
                 }
             }
 
             const rw = parseFloat(repSettings.daysWorked) || calculateElapsedWorkDays || 1;
             const totalDays = calculateTotalWorkDays || 20;
-
-            // Case-Insensitive Location Lookup
-            const locationMatch = Object.keys(adminSettings.locationGoals).find(k => k.toLowerCase() === row.strDepartment?.toLowerCase()) || row.strDepartment;
-            const locGoals = adminSettings.locationGoals[locationMatch] || {};
+            const locGoals = adminSettings.locationGoals[row.strDepartment] || {};
             const currentMonthIndex = rowDate ? rowDate.getMonth() : selectedDate.getMonth();
             const salesGoal = (locGoals.yearlySales || 0) * ((locGoals.monthlyPcts?.[currentMonthIndex] || 8.33) / 100);
             const targetPct = parseFloat(repSettings.targetPct) || 0;
@@ -584,21 +567,22 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 dailySalesGoal: salesToMeetGoal > 0 ? salesToMeetGoal / (totalDays - rw) : 0,
                 toDateEstGoal: estGoal * (rw / totalDays),
                 toDateEstQtyGoal: (locGoals.estQty || adminSettings.defaultEstQtyGoal) * (rw / totalDays),
-
-                // Fields required by Table / UI
-                curQuoteTotals: row.curQuoted || 0,
-                curQuoteQty: row.intQuotes || 0,
-                salesPace: rw > 0 ? (row.curOrderTotals / rw) * totalDays : 0,
-                paceToGoal: toDateSalesGoal > 0 ? (row.curOrderTotals / toDateSalesGoal) * 100 : 0,
-                closeRateDollar: row.curQuoted > 0 ? (row.curOrderTotals / row.curQuoted) * 100 : 0,
-                closeRateQty: row.intQuotes > 0 ? (row.intOrders / row.intQuotes) * 100 : 0,
-                grossProfitPct: row.curSubTotal > 0 ? (row.curInvoiceProfit / row.curSubTotal) * 100 : (row.decProfitPercent || 0),
-
+                convRateDollars: row.curQuoted > 0 ? (row.curOrderTotals / row.curQuoted) * 100 : 0,
+                convRateQty: row.intQuotes > 0 ? (row.intOrders / row.intQuotes) * 100 : 0,
                 isMisc: false
             };
         });
+    }, [data, selectedDate, dateMode, adminSettings, calculateTotalWorkDays, calculateElapsedWorkDays]);
 
-        if (showManagerSettings) {
+    const processedData = useMemo(() => {
+        if (!companyProcessedData.length) return [];
+
+        let result = [...companyProcessedData];
+        if (selectedLocation !== 'All') {
+            result = result.filter(item => item.strDepartment === selectedLocation);
+        }
+
+        if (viewMode === 'manager' || viewMode === 'viewer') {
             const shownRows = [];
             const misc = {
                 strName: 'Misc / Other Reps', strDepartment: selectedLocation, isMisc: true,
@@ -607,7 +591,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 toDateVariance: 0, monthlyVariance: 0, salesToMeetGoal: 0, dailySalesGoal: 0, toDateEstGoal: 0, toDateEstQtyGoal: 0
             };
             let miscCount = 0;
-            calculatedRows.forEach(row => {
+            result.forEach(row => {
                 if (!visibleRepIds.size || visibleRepIds.has(row.strSalesperson)) shownRows.push(row);
                 else {
                     miscCount++; misc.curOrderTotals += row.curOrderTotals; misc.intOrders += row.intOrders; misc.curQuoted += (row.curQuoted || 0);
@@ -624,7 +608,6 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             misc.convRateQty = misc.intQuotes > 0 ? (misc.intOrders / misc.intQuotes) * 100 : 0;
             if (miscCount > 0) shownRows.push(misc);
 
-            // Sort the shownRows
             return shownRows.sort((a, b) => {
                 if (a.isMisc) return 1; if (b.isMisc) return -1;
                 const sortKey = sortConfig?.key || 'curOrderTotals';
@@ -635,7 +618,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             });
         }
 
-        return calculatedRows.sort((a, b) => {
+        return result.sort((a, b) => {
             const sortKey = sortConfig?.key || 'curOrderTotals';
             if (a.isMisc) return 1; if (b.isMisc) return -1;
             const valA = a[sortKey]; const valB = b[sortKey];
@@ -643,7 +626,8 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [data, viewMode, selectedLocation, visibleRepIds, sortConfig, adminSettings, calculateTotalWorkDays, selectedDate]);
+    }, [companyProcessedData, viewMode, selectedLocation, visibleRepIds, sortConfig, adminSettings, calculateElapsedWorkDays]);
+
 
     const branchSummary = useMemo(() => {
         let summaryGoal = 0;
@@ -864,9 +848,10 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         saveSettingsToCloud,
         saveStatus,
         adminSettings, setAdminSettings,
-        calculateTotalWorkDays, processedData, branchSummary, toggleAdminMode, monthNames, handleSort,
+        calculateTotalWorkDays, processedData, companyProcessedData, branchSummary, toggleAdminMode, monthNames, handleSort,
         handleLocationGoalChange, handleLocationMonthPctChange, handleFormulaChange, toggleRepVisibility,
         handleTriggerAppsScript, triggerStatus,
+        productsData,
         selectedDate, setSelectedDate,
         dateMode, setDateMode,
         calculateElapsedWorkDays
