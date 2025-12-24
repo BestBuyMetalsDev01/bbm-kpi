@@ -113,7 +113,7 @@ const IndividualPanel = ({
                         <div className="text-center px-3">
                             <div className="flex items-center gap-1.5 text-amber-400 mb-1 justify-center">
                                 <Trophy className="w-4 h-4" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Total Wins</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest">Goals Hit</span>
                             </div>
                             <p className="text-2xl font-black leading-none">{streakStats.totalWins}</p>
                         </div>

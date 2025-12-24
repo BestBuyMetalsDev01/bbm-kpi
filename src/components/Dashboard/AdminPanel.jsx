@@ -151,40 +151,62 @@ const AdminPanel = ({
                     </div>
 
                     <div>
-                        <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">Location Sales Goals</h3>
+                        <div className="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Location Sales Goals</h3>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-500">Year:</span>
+                                <select
+                                    className="bg-slate-800 text-white text-sm font-bold px-3 py-1.5 rounded-lg border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={adminSettings.selectedGoalYear || new Date().getFullYear()}
+                                    onChange={(e) => setAdminSettings(prev => ({ ...prev, selectedGoalYear: parseInt(e.target.value) }))}
+                                >
+                                    <option value={2024}>2024</option>
+                                    <option value={2025}>2025</option>
+                                    <option value={2026}>2026</option>
+                                </select>
+                            </div>
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {locationKeys.map(loc => (
-                                <div key={loc} className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-200 transition-colors">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <MapPin className="w-4 h-4 text-blue-500" />
-                                        <span className="font-bold text-slate-700 dark:text-slate-200">{loc}</span>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <AdminInput
-                                            label="Yearly Sales Goal"
-                                            value={adminSettings.locationGoals[loc]?.yearlySales || ''}
-                                            onChange={(val) => handleLocationGoalChange(loc, 'yearlySales', val)}
-                                            prefix="$"
-                                        />
-                                        <div>
-                                            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Monthly Weights (%)</label>
-                                            <div className="grid grid-cols-6 gap-1">
-                                                {adminSettings.locationGoals[loc]?.monthlyPcts?.map((pct, idx) => (
-                                                    <div key={idx} className="flex flex-col items-center">
-                                                        <span className="text-[8px] font-bold text-slate-400 mb-0.5">{monthNames[idx].substring(0, 1)}</span>
-                                                        <input
-                                                            type="text"
-                                                            className="w-full text-[10px] p-1 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded focus:ring-1 focus:ring-blue-500 outline-none"
-                                                            value={pct}
-                                                            onChange={(e) => handleLocationMonthPctChange(loc, idx, e.target.value)}
-                                                        />
-                                                    </div>
-                                                ))}
+                            {locationKeys.map(loc => {
+                                const selectedYear = adminSettings.selectedGoalYear || new Date().getFullYear();
+                                const yearlyKey = `yearlySales${selectedYear}`;
+                                const currentValue = adminSettings.locationGoals[loc]?.[yearlyKey]
+                                    || (selectedYear === 2024 ? adminSettings.locationGoals[loc]?.yearlySales : '')
+                                    || '';
+
+                                return (
+                                    <div key={loc} className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-200 transition-colors">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <MapPin className="w-4 h-4 text-blue-500" />
+                                            <span className="font-bold text-slate-700 dark:text-slate-200">{loc}</span>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <AdminInput
+                                                label={`${selectedYear} Yearly Sales Goal`}
+                                                value={currentValue}
+                                                onChange={(val) => handleLocationGoalChange(loc, yearlyKey, val)}
+                                                prefix="$"
+                                            />
+                                            <div>
+                                                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Monthly Weights (%)</label>
+                                                <div className="grid grid-cols-6 gap-1">
+                                                    {adminSettings.locationGoals[loc]?.monthlyPcts?.map((pct, idx) => (
+                                                        <div key={idx} className="flex flex-col items-center">
+                                                            <span className="text-[8px] font-bold text-slate-400 mb-0.5">{monthNames[idx].substring(0, 1)}</span>
+                                                            <input
+                                                                type="text"
+                                                                className="w-full text-[10px] p-1 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                                                                value={pct}
+                                                                onChange={(e) => handleLocationMonthPctChange(loc, idx, e.target.value)}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>

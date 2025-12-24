@@ -16,7 +16,7 @@ const AuthenticatedApp = () => {
   }
 
   return (
-    <Router>
+    <Router basename="/bbm-kpi">
       <Routes>
         <Route path="/" element={<ReportDashboard initialViewMode="viewer" />} />
         <Route path="/manager" element={<ReportDashboard initialViewMode="manager" />} />
