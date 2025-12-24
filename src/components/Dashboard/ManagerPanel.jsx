@@ -64,6 +64,9 @@ const ManagerPanel = ({
 
         data.forEach(r => {
             if (!r.strSalesperson || r.strDepartment !== selectedLocation) return;
+            // Filter out placeholders (where ID matches branch name)
+            if (r.strSalesperson.toUpperCase() === r.strDepartment.toUpperCase()) return;
+
             const rowDate = r._parsedDate || new Date(r.date);
 
             if (rowDate >= lookbackDate && rowDate <= new Date(year, month, 0)) {
@@ -112,6 +115,32 @@ const ManagerPanel = ({
                     ...prev.repSettings,
                     [repId]: {
                         ...currentRepSettings,
+                        months: {
+                            ...existingMonths,
+                            [monthKey]: {
+                                ...currentMonthSettings,
+                                [field]: value
+                            }
+                        }
+                    }
+                }
+            };
+        });
+    };
+
+    const handleLocationMonthGoalChange = (loc, field, value) => {
+        setAdminSettings(prev => {
+            const currentLoc = prev.locationGoals?.[loc] || {};
+            const monthKey = selectedMonth;
+            const existingMonths = currentLoc.months || {};
+            const currentMonthSettings = existingMonths[monthKey] || {};
+
+            return {
+                ...prev,
+                locationGoals: {
+                    ...prev.locationGoals,
+                    [loc]: {
+                        ...currentLoc,
                         months: {
                             ...existingMonths,
                             [monthKey]: {
@@ -232,72 +261,70 @@ const ManagerPanel = ({
                                             </div>
                                         </div>
                                         <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                                            {uniqueReps.map(rep => (
-                                                <div key={rep.strSalesperson} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm hover:border-blue-200 transition-colors group">
-                                                    <div className="flex items-center gap-3">
-                                                        <button
-                                                            onClick={() => toggleRepVisibility(rep.strSalesperson)}
-                                                            className={`p-2 rounded-xl transition-all ${visibleRepIds.has(rep.strSalesperson) ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}
-                                                        >
-                                                            {visibleRepIds.has(rep.strSalesperson) ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                                        </button>
-                                                        <div>
-                                                            <div className="text-sm font-black text-slate-700 dark:text-slate-200">{rep.strName}</div>
-                                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{rep.strSalesperson}</div>
-                                                        </div>
-                                                    </div>
+                                            {uniqueReps.map(rep => {
+                                                const repSet = adminSettings.repSettings?.[rep.strSalesperson] || {};
+                                                // Check both padded (2024-01) and unpadded (2024-1) month keys
+                                                const [year, month] = selectedMonth.split('-').map(Number);
+                                                const unpaddedKey = `${year}-${month}`;
+                                                const monthSet = repSet.months?.[selectedMonth] || repSet.months?.[unpaddedKey] || {};
 
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="flex flex-col items-end">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase mb-1">Days</label>
-                                                            <input
-                                                                type="number"
-                                                                className="w-12 text-center text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-lg py-1 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                                value={adminSettings.repSettings?.[rep.strSalesperson]?.months?.[selectedMonth]?.daysWorked ?? adminSettings.repSettings?.[rep.strSalesperson]?.daysWorked ?? adminSettings.daysWorked ?? ''}
-                                                                onChange={(e) => handleRepSettingChange(rep.strSalesperson, 'daysWorked', e.target.value)}
-                                                            />
+                                                const targetPct = parseFloat(monthSet.targetPct ?? repSet.targetPct ?? 0);
+                                                const manualGoal = monthSet.personalGoal ?? repSet.personalGoal ?? 0;
+
+                                                // Calculate preview based on current branch settings for selected month
+                                                const locGoals = adminSettings.locationGoals[selectedLocation] || {};
+                                                const monthKey = selectedMonth;
+                                                const manualBranchGoal = parseFloat(locGoals.months?.[monthKey]?.est) || parseFloat(locGoals.est);
+
+                                                let branchMonthGoal = 0;
+                                                if (!isNaN(manualBranchGoal) && manualBranchGoal > 0) {
+                                                    branchMonthGoal = manualBranchGoal;
+                                                } else {
+                                                    const [year, month] = selectedMonth.split('-').map(Number);
+                                                    const monthlyPct = (locGoals.monthlyPcts?.[month - 1] || 8.33);
+                                                    branchMonthGoal = (locGoals.yearlySales || 0) * (monthlyPct / 100);
+                                                }
+                                                const previewGoal = branchMonthGoal * (targetPct / 100);
+
+                                                return (
+                                                    <div key={rep.strSalesperson} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm hover:border-blue-200 transition-colors group">
+                                                        <div className="flex items-center gap-3">
+                                                            <button
+                                                                onClick={() => toggleRepVisibility(rep.strSalesperson)}
+                                                                className={`p-2 rounded-xl transition-all ${visibleRepIds.has(rep.strSalesperson) ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}
+                                                            >
+                                                                {visibleRepIds.has(rep.strSalesperson) ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                                            </button>
+                                                            <div>
+                                                                <div className="text-sm font-black text-slate-700 dark:text-slate-200">{rep.strName}</div>
+                                                                <div className="text-[10px] text-slate-400 font-bold uppercase">{rep.strSalesperson}</div>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex flex-col items-end">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase mb-1">Target %</label>
-                                                            <input
-                                                                type="number"
-                                                                className="w-12 text-center text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-lg py-1 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                                value={adminSettings.repSettings?.[rep.strSalesperson]?.months?.[selectedMonth]?.targetPct ?? adminSettings.repSettings?.[rep.strSalesperson]?.targetPct ?? 0}
-                                                                onChange={(e) => handleRepSettingChange(rep.strSalesperson, 'targetPct', e.target.value)}
-                                                            />
-                                                        </div>
-                                                        <div className="flex flex-col items-end">
-                                                            <label className="text-[8px] font-black text-slate-400 uppercase mb-1">Goal $</label>
-                                                            <input
-                                                                type="number"
-                                                                className="w-20 text-right text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-lg py-1 px-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                                                                value={adminSettings.repSettings?.[rep.strSalesperson]?.months?.[selectedMonth]?.personalGoal ?? adminSettings.repSettings?.[rep.strSalesperson]?.personalGoal ?? 0}
-                                                                onChange={(e) => handleRepSettingChange(rep.strSalesperson, 'personalGoal', e.target.value)}
-                                                            />
+
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="flex flex-col items-end">
+                                                                <label className="text-[8px] font-black text-slate-400 uppercase mb-1">Days</label>
+                                                                <input
+                                                                    type="number"
+                                                                    className="w-12 text-center text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-lg py-1 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    value={monthSet.daysWorked ?? repSet.daysWorked ?? adminSettings.daysWorked ?? ''}
+                                                                    onChange={(e) => handleRepSettingChange(rep.strSalesperson, 'daysWorked', e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="flex flex-col items-end">
+                                                                <label className="text-[8px] font-black text-slate-400 uppercase mb-1">Target %</label>
+                                                                <input
+                                                                    type="number"
+                                                                    className="w-12 text-center text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-lg py-1 focus:ring-2 focus:ring-blue-500 outline-none"
+                                                                    value={targetPct}
+                                                                    onChange={(e) => handleRepSettingChange(rep.strSalesperson, 'targetPct', e.target.value)}
+                                                                />
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
-                                    </div>
-                                </div>
-                                <div className="space-y-8 p-8 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800">
-                                    <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <Settings className="w-4 h-4 text-blue-500" /> Branch Parameters
-                                    </h3>
-                                    <div className="space-y-6">
-                                        <AdminInput
-                                            label="Estimated Monthly Sales Goal"
-                                            value={adminSettings.locationGoals[selectedLocation]?.est || ''}
-                                            onChange={(val) => handleLocationGoalChange(selectedLocation, 'est', val)}
-                                            prefix="$"
-                                        />
-                                        <AdminInput
-                                            label="Estimated Monthly Quote Goal"
-                                            value={adminSettings.locationGoals[selectedLocation]?.estQty || ''}
-                                            onChange={(val) => handleLocationGoalChange(selectedLocation, 'estQty', val)}
-                                            type="number"
-                                        />
                                     </div>
                                 </div>
                             </div>

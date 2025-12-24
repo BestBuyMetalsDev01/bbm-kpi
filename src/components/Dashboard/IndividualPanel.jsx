@@ -1,7 +1,9 @@
-import { TrendingUp, DollarSign, Target, Award, MapPin, Calendar, Globe } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { TrendingUp, DollarSign, Target, Award, MapPin, Calendar, Globe, Flame, Zap, Trophy } from 'lucide-react';
 import { formatCurrency, formatNumber, formatBranchName } from '../../utils/formatters';
 import GoalVisualizer from './GoalVisualizer';
 import TrendChart from './TrendChart';
+import { calculateRepStreaks } from '../../utils/calculations';
 
 const IndividualPanel = ({
     processedData,
@@ -73,11 +75,13 @@ const IndividualPanel = ({
     // Close Rate: My Orders / My Quotes (Count) based on filtered monthly metrics
     const closeRate = myMetrics.quoteCount > 0 ? (myMetrics.orderCount / myMetrics.quoteCount) * 100 : 0;
 
-    // 4. Personal Goal (Manual)
-    const currentMonthKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
-    const personalGoal = adminSettings.repSettings?.[user.employeeId]?.months?.[currentMonthKey]?.personalGoal
-        ?? adminSettings.repSettings?.[user.employeeId]?.personalGoal
-        ?? 0;
+    // 4. Goal Metrics from Engine
+    const currentGoal = myMetrics.totalGoal;
+
+    // 5. Streak Metrics
+    const streakStats = useMemo(() => {
+        return calculateRepStreaks(myHistory, adminSettings);
+    }, [myHistory, adminSettings]);
 
     const displayBranch = formatBranchName(user.Department);
 
@@ -85,10 +89,12 @@ const IndividualPanel = ({
         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
             {/* Header / Welcome and Visualizers */}
             <div className="flex flex-col lg:flex-row gap-6">
-                <div className="flex-1 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+                <div className="flex-1 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[200px]">
                     <div className="absolute top-0 right-0 p-4 opacity-10">
                         <Award className="w-64 h-64" />
                     </div>
+
+                    {/* Welcome and Branch Info */}
                     <div className="relative z-10">
                         <h2 className="text-3xl font-black mb-2 flex items-center gap-3">
                             Welcome, {user.name?.split(' ')[0]}! 👋
@@ -101,26 +107,44 @@ const IndividualPanel = ({
                             {monthName} Performance
                         </p>
                     </div>
+
+                    {/* Streak Stats - Bottom of container */}
+                    <div className="relative z-10 flex gap-6 bg-white/5 backdrop-blur-sm p-4 rounded-2xl border border-white/10 w-fit mt-4">
+                        <div className="text-center px-3">
+                            <div className="flex items-center gap-1.5 text-amber-400 mb-1 justify-center">
+                                <Trophy className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Total Wins</span>
+                            </div>
+                            <p className="text-2xl font-black leading-none">{streakStats.totalWins}</p>
+                        </div>
+                        <div className="w-px h-10 bg-white/10 self-center" />
+                        <div className="text-center px-3">
+                            <div className="flex items-center gap-1.5 text-orange-500 mb-1 justify-center">
+                                <Flame className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Current Streak</span>
+                            </div>
+                            <p className="text-2xl font-black leading-none">{streakStats.currentStreak}</p>
+                        </div>
+                        <div className="w-px h-10 bg-white/10 self-center" />
+                        <div className="text-center px-3">
+                            <div className="flex items-center gap-1.5 text-blue-400 mb-1 justify-center">
+                                <Zap className="w-4 h-4" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Longest Streak</span>
+                            </div>
+                            <p className="text-2xl font-black leading-none">{streakStats.longestStreak}</p>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Goal Visualizers */}
-                <div className="flex gap-4 overflow-x-auto pb-2 lg:pb-0">
+                {/* Goal Visualizer */}
+                <div className="flex items-center justify-center p-4">
                     <GoalVisualizer
                         current={myMetrics.sales}
-                        target={myMetrics.totalGoal} // Use Total Monthly Goal
+                        target={currentGoal}
                         label="Location Goal"
                         icon={Target}
                         colorClass="stroke-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]"
                     />
-                    {personalGoal > 0 && (
-                        <GoalVisualizer
-                            current={myMetrics.sales}
-                            target={personalGoal}
-                            label="Personal Goal"
-                            icon={Globe}
-                            colorClass="stroke-purple-500 drop-shadow-[0_0_8px_rgba(168,85,247,0.3)]"
-                        />
-                    )}
                 </div>
             </div>
 

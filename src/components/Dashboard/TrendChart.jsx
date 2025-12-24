@@ -15,7 +15,7 @@ const TrendChart = ({ data, location, repName }) => {
     const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
-        const timer = setTimeout(() => setIsMounted(true), 100);
+        const timer = setTimeout(() => setIsMounted(true), 500);
         return () => clearTimeout(timer);
     }, []);
 
@@ -73,7 +73,7 @@ const TrendChart = ({ data, location, repName }) => {
             "Company Performance Trend";
 
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 shadow-xl h-[400px]">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 shadow-xl h-[400px] flex flex-col">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
                 {title}
                 <span className="text-xs font-normal text-slate-400 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full">
@@ -81,59 +81,71 @@ const TrendChart = ({ data, location, repName }) => {
                 </span>
             </h3>
 
-            {isMounted ? (
-                <ResponsiveContainer width="100%" height="85%">
-                    <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
-                        <XAxis
-                            dataKey="name"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fill: '#64748b', fontSize: 12 }}
-                            dy={10}
-                        />
-                        <YAxis
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fill: '#64748b', fontSize: 12 }}
-                            tickFormatter={(value) => `$${value / 1000}k`}
-                        />
-                        <Tooltip
-                            contentStyle={{ backgroundColor: '#1e293b', borderRadius: '8px', border: 'none', color: '#fff' }}
-                            itemStyle={{ color: '#e2e8f0' }}
-                            formatter={(value) => formatCurrency(value)}
-                            labelStyle={{ fontWeight: 'bold', color: '#fff', marginBottom: '0.5rem' }}
-                            cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
-                        />
-                        <Legend
-                            iconType="circle"
-                            wrapperStyle={{ paddingTop: '20px' }}
-                        />
-                        {years.map((year, index) => {
-                            const isCurrent = year === latestYear;
-                            // Use explicit color for latest year (Blue), others fade to gray
-                            const color = isCurrent ? '#3b82f6' : colors[index % (colors.length - 1)];
+            <div className="flex-1 w-full min-h-0 relative">
+                {isMounted ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
+                            <XAxis
+                                dataKey="name"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: '#64748b', fontSize: 12 }}
+                                dy={10}
+                            />
+                            <YAxis
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: '#64748b', fontSize: 12 }}
+                                tickFormatter={(value) => `$${value / 1000}k`}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    backgroundColor: '#1e293b',
+                                    borderRadius: '12px',
+                                    border: 'none',
+                                    padding: '12px',
+                                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
+                                }}
+                                itemStyle={{ padding: '2px 0' }}
+                                formatter={(value) => [
+                                    <span className="font-bold text-white text-sm">{formatCurrency(value)}</span>,
+                                    <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">Revenue</span>
+                                ]}
+                                labelStyle={{ fontWeight: 'black', color: '#fff', marginBottom: '8px', fontSize: '12px', textTransform: 'uppercase' }}
+                                cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
+                            />
+                            <Legend
+                                iconType="line"
+                                wrapperStyle={{ paddingTop: '24px' }}
+                                formatter={(value) => <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{value}</span>}
+                            />
+                            {years.map((year, index) => {
+                                const isCurrent = year === latestYear;
+                                const color = isCurrent ? '#3b82f6' : colors[index % (colors.length - 1)];
 
-                            return (
-                                <Line
-                                    key={year}
-                                    type="monotone"
-                                    dataKey={year}
-                                    stroke={color}
-                                    strokeWidth={isCurrent ? 3 : 2}
-                                    dot={isCurrent ? { r: 4, fill: color, strokeWidth: 2, stroke: '#fff' } : false}
-                                    activeDot={{ r: 6 }}
-                                    connectNulls
-                                />
-                            );
-                        })}
-                    </LineChart>
-                </ResponsiveContainer>
-            ) : (
-                <div className="w-full h-[85%] flex items-center justify-center">
-                    <div className="w-6 h-6 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
-                </div>
-            )}
+                                return (
+                                    <Line
+                                        key={year}
+                                        type="monotone"
+                                        dataKey={year}
+                                        stroke={color}
+                                        strokeWidth={isCurrent ? 4 : 2}
+                                        dot={isCurrent ? { r: 4, fill: '#fff', strokeWidth: 2, stroke: color } : false}
+                                        activeDot={isCurrent ? { r: 7, strokeWidth: 0 } : { r: 4 }}
+                                        connectNulls
+                                        animationDuration={1500}
+                                    />
+                                );
+                            })}
+                        </LineChart>
+                    </ResponsiveContainer>
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <div className="w-6 h-6 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

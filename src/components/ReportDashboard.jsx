@@ -16,6 +16,7 @@ import TrendChart from './Dashboard/TrendChart';
 import RepDetailModal from './Dashboard/RepDetailModal';
 import ExecutiveDashboard from './Dashboard/ExecutiveDashboard';
 import Leaderboard from './Dashboard/Leaderboard';
+import CompanyMultiYearChart from './Dashboard/CompanyMultiYearChart';
 
 const ReportDashboard = ({ initialViewMode }) => {
     const { user } = useAuth();
@@ -169,6 +170,7 @@ const ReportDashboard = ({ initialViewMode }) => {
                                 setDateMode={setDateMode}
                             />
                             <LocationTrendChart data={data} selectedDate={selectedDate} />
+                            <CompanyMultiYearChart data={data} />
                         </div>
                     ) : viewMode === 'executive' ? (
                         <ExecutiveDashboard

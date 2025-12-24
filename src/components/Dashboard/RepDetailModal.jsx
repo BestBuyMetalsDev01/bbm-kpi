@@ -27,8 +27,8 @@ const RepDetailModal = ({ isOpen, onClose, repData, fullHistory, adminSettings, 
     const metrics = {
         sales: repData.curOrderTotals || 0,
         ytd: calculatedYTD,
-        quoteAmt: repData.curQuoteTotals || 0,
-        quoteCount: repData.curQuoteQty || 0,
+        quoteAmt: repData.curQuoted || 0,
+        quoteCount: repData.intQuotes || 0,
         orderCount: repData.intOrders || 0,
         profit: repData.curInvoiceProfit || 0,
         invoiced: repData.curSubTotal || 0,
@@ -37,8 +37,8 @@ const RepDetailModal = ({ isOpen, onClose, repData, fullHistory, adminSettings, 
         variance: repData.monthlyVariance || 0,
         pace: repData.salesPace || 0,
         paceToGoal: repData.paceToGoal || 0,
-        profitPct: repData.grossProfitPct || 0,
-        closeRate: repData.closeRateDollar || 0
+        profitPct: repData.decProfitPercent || 0,
+        closeRate: repData.convRateDollars || 0
     };
 
     return (
