@@ -95,6 +95,75 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         });
     };
 
+    // Settings History for Undo/Redo
+    const [settingsHistory, setSettingsHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    const isUndoRedo = useRef(false);
+
+    // Track settings changes for undo/redo (exclude visibility changes)
+    useEffect(() => {
+        if (isUndoRedo.current) {
+            isUndoRedo.current = false;
+            return;
+        }
+        // Only track meaningful setting changes (repSettings, locationGoals)
+        const snapshot = {
+            repSettings: JSON.stringify(adminSettings.repSettings),
+            locationGoals: JSON.stringify(adminSettings.locationGoals)
+        };
+
+        setSettingsHistory(prev => {
+            // Don't add duplicate states
+            if (prev.length > 0 && historyIndex >= 0) {
+                const currentSnap = prev[historyIndex];
+                if (currentSnap &&
+                    currentSnap.repSettings === snapshot.repSettings &&
+                    currentSnap.locationGoals === snapshot.locationGoals) {
+                    return prev;
+                }
+            }
+
+            // Trim future states if we're not at the end
+            const newHistory = prev.slice(0, historyIndex + 1);
+            newHistory.push(snapshot);
+
+            // Keep only last 20 states
+            if (newHistory.length > 20) newHistory.shift();
+
+            setHistoryIndex(newHistory.length - 1);
+            return newHistory;
+        });
+    }, [adminSettings.repSettings, adminSettings.locationGoals]);
+
+    const canUndo = historyIndex > 0;
+    const canRedo = historyIndex < settingsHistory.length - 1;
+
+    const undoSettings = () => {
+        if (!canUndo) return;
+        isUndoRedo.current = true;
+        const prevIndex = historyIndex - 1;
+        const prevState = settingsHistory[prevIndex];
+        setAdminSettings(prev => ({
+            ...prev,
+            repSettings: JSON.parse(prevState.repSettings),
+            locationGoals: JSON.parse(prevState.locationGoals)
+        }));
+        setHistoryIndex(prevIndex);
+    };
+
+    const redoSettings = () => {
+        if (!canRedo) return;
+        isUndoRedo.current = true;
+        const nextIndex = historyIndex + 1;
+        const nextState = settingsHistory[nextIndex];
+        setAdminSettings(prev => ({
+            ...prev,
+            repSettings: JSON.parse(nextState.repSettings),
+            locationGoals: JSON.parse(nextState.locationGoals)
+        }));
+        setHistoryIndex(nextIndex);
+    };
+
 
     // Handle initialViewMode updates if props change
     useEffect(() => {
@@ -773,6 +842,8 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         productsData,
         selectedDate, setSelectedDate,
         dateMode, setDateMode,
-        calculateElapsedWorkDays
+        calculateElapsedWorkDays,
+        // Undo/Redo
+        canUndo, canRedo, undoSettings, redoSettings
     };
 };

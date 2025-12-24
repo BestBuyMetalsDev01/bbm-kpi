@@ -1,9 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 
-const SnowEffect = () => {
+const SnowEffect = ({ weather }) => {
     const canvasRef = useRef(null);
 
+    // Don't show snow if weather data exists and temp is above 40°F
+    const shouldShowSnow = !weather || weather.temp === null || weather.temp <= 40;
+
     useEffect(() => {
+        if (!shouldShowSnow) return;
+
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -76,7 +81,10 @@ const SnowEffect = () => {
             window.removeEventListener('resize', updateSize);
             cancelAnimationFrame(animationFrameId);
         };
-    }, []);
+    }, [shouldShowSnow]);
+
+    // Don't render canvas if too warm
+    if (!shouldShowSnow) return null;
 
     return (
         <canvas

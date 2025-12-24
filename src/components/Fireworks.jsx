@@ -192,12 +192,6 @@ const Fireworks = () => {
 
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1, pointerEvents: 'none' }}>
-            <h1 style={{
-                position: 'absolute', bottom: '20px', width: '100%', textAlign: 'center',
-                color: 'rgba(255,255,255,0.8)', fontSize: '2rem', textShadow: '0 2px 4px rgba(0,0,0,0.5)', pointerEvents: 'none'
-            }}>
-                Goal Reached! 🎉
-            </h1>
             <canvas ref={canvasRef} style={{ display: 'block', pointerEvents: 'auto' }} />
         </div>
     );

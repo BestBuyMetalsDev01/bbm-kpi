@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Eye, EyeOff, CalendarDays, Percent, Save, RefreshCw, DollarSign, Target, Settings, User, Shield } from 'lucide-react';
+import { Users, Eye, EyeOff, CalendarDays, Percent, Save, RefreshCw, DollarSign, Target, Settings, User, Shield, Undo2, Redo2 } from 'lucide-react';
 import { AdminInput } from './Common';
 import AdminPanel from './AdminPanel';
 
@@ -32,7 +32,11 @@ const ManagerPanel = ({
     sqlSyncStatus,
     handleTriggerAppsScript,
     triggerStatus,
-    setSelectedLocation: setHeaderLocation
+    setSelectedLocation: setHeaderLocation,
+    canUndo,
+    canRedo,
+    undoSettings,
+    redoSettings
 }) => {
     const [activeTab, setActiveTab] = React.useState('manager'); // 'manager' or 'admin'
     const [selectedMonth, setSelectedMonth] = React.useState(() => {
@@ -181,7 +185,24 @@ const ManagerPanel = ({
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                         Context: <span className="text-slate-600 dark:text-slate-300">{selectedLocation}</span>
                     </span>
-                    <div className="flex items-center gap-3 ml-4 pl-4 border-l border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-2 ml-4 pl-4 border-l border-slate-200 dark:border-slate-800">
+                        {/* Undo/Redo Buttons */}
+                        <button
+                            onClick={undoSettings}
+                            disabled={!canUndo}
+                            title="Undo"
+                            className={`p-2 rounded-lg transition-all ${canUndo ? 'bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'}`}
+                        >
+                            <Undo2 className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={redoSettings}
+                            disabled={!canRedo}
+                            title="Redo"
+                            className={`p-2 rounded-lg transition-all ${canRedo ? 'bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'}`}
+                        >
+                            <Redo2 className="w-4 h-4" />
+                        </button>
                         <button
                             onClick={saveSettingsToCloud}
                             disabled={saveStatus?.loading}
@@ -269,22 +290,6 @@ const ManagerPanel = ({
                                                 const monthSet = repSet.months?.[selectedMonth] || repSet.months?.[unpaddedKey] || {};
 
                                                 const targetPct = parseFloat(monthSet.targetPct ?? repSet.targetPct ?? 0);
-                                                const manualGoal = monthSet.personalGoal ?? repSet.personalGoal ?? 0;
-
-                                                // Calculate preview based on current branch settings for selected month
-                                                const locGoals = adminSettings.locationGoals[selectedLocation] || {};
-                                                const monthKey = selectedMonth;
-                                                const manualBranchGoal = parseFloat(locGoals.months?.[monthKey]?.est) || parseFloat(locGoals.est);
-
-                                                let branchMonthGoal = 0;
-                                                if (!isNaN(manualBranchGoal) && manualBranchGoal > 0) {
-                                                    branchMonthGoal = manualBranchGoal;
-                                                } else {
-                                                    const [year, month] = selectedMonth.split('-').map(Number);
-                                                    const monthlyPct = (locGoals.monthlyPcts?.[month - 1] || 8.33);
-                                                    branchMonthGoal = (locGoals.yearlySales || 0) * (monthlyPct / 100);
-                                                }
-                                                const previewGoal = branchMonthGoal * (targetPct / 100);
 
                                                 return (
                                                     <div key={rep.strSalesperson} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm hover:border-blue-200 transition-colors group">

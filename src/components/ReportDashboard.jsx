@@ -28,7 +28,8 @@ const ReportDashboard = ({ initialViewMode }) => {
         handleLocationGoalChange, handleLocationMonthPctChange, handleFormulaChange, toggleRepVisibility,
         handleTriggerAppsScript, triggerStatus, saveSettingsToCloud, saveStatus,
         productsData,
-        selectedDate, setSelectedDate, dateMode, setDateMode, calculateTotalWorkDays, calculateElapsedWorkDays
+        selectedDate, setSelectedDate, dateMode, setDateMode, calculateTotalWorkDays, calculateElapsedWorkDays,
+        canUndo, canRedo, undoSettings, redoSettings
     } = useDashboardData(initialViewMode);
 
     // Weather Effect
@@ -140,6 +141,10 @@ const ReportDashboard = ({ initialViewMode }) => {
                                 handleTriggerAppsScript={handleTriggerAppsScript}
                                 triggerStatus={triggerStatus}
                                 setSelectedLocation={setSelectedLocation}
+                                canUndo={canUndo}
+                                canRedo={canRedo}
+                                undoSettings={undoSettings}
+                                redoSettings={redoSettings}
                             />
                         </div>
                     )}
@@ -147,7 +152,7 @@ const ReportDashboard = ({ initialViewMode }) => {
                     {viewMode === 'rep' ? (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                             <IndividualPanel
-                                processedData={processedData}
+                                processedData={companyProcessedData}
                                 fullHistory={data}
                                 branchSummary={branchSummary}
                                 user={user}

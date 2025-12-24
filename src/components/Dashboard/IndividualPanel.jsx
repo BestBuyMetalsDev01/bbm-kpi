@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { TrendingUp, DollarSign, Target, Award, MapPin, Calendar, Globe, Flame, Zap, Trophy } from 'lucide-react';
+import { TrendingUp, DollarSign, Target, Award, MapPin, Calendar, Globe, Flame, Zap, Trophy, Bell } from 'lucide-react';
 import { formatCurrency, formatNumber, formatBranchName } from '../../utils/formatters';
 import GoalVisualizer from './GoalVisualizer';
 import TrendChart from './TrendChart';
@@ -16,13 +16,13 @@ const IndividualPanel = ({
 }) => {
     // 1. Filter metrics (Current view)
     const myData = processedData.filter(row => {
-        if (user.employeeId) return row.strSalesperson === user.employeeId || row.strSalesperson === `P${user.employeeId}`;
+        if (user.employeeId) return row.strSalesperson === user.employeeId || row.strSalesperson === `P${user.employeeId} `;
         return row.strName === user.name;
     });
 
     // Filter FULL history for this user (for trends)
     const myHistory = fullHistory.filter(row => {
-        if (user.employeeId) return row.strSalesperson === user.employeeId || row.strSalesperson === `P${user.employeeId}`;
+        if (user.employeeId) return row.strSalesperson === user.employeeId || row.strSalesperson === `P${user.employeeId} `;
         return row.strName === user.name;
     });
 
@@ -83,10 +83,42 @@ const IndividualPanel = ({
         return calculateRepStreaks(myHistory, adminSettings);
     }, [myHistory, adminSettings]);
 
+    // 6. Goal Milestone Notifications
+    const milestone = useMemo(() => {
+        if (currentGoal <= 0) return null;
+        const progress = (myMetrics.sales / currentGoal) * 100;
+
+        if (progress >= 100) {
+            return { type: 'success', icon: '🎉', message: 'Goal Achieved! Outstanding work!', progress };
+        } else if (progress >= 90) {
+            return { type: 'warning', icon: '🔥', message: "You're 90% there! Final push!", progress };
+        } else if (progress >= 75) {
+            return { type: 'info', icon: '💪', message: "75% complete! Keep the momentum!", progress };
+        } else if (progress >= 50) {
+            return { type: 'info', icon: '⚡', message: "Halfway there! Great progress!", progress };
+        }
+        return null;
+    }, [myMetrics.sales, currentGoal]);
+
     const displayBranch = formatBranchName(user.Department);
 
     return (
         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+            {/* Milestone Notification */}
+            {milestone && (
+                <div className={`flex items-center gap-3 p-4 rounded-2xl animate-in slide-in-from-top-4 duration-500 ${milestone.type === 'success' ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white' :
+                    milestone.type === 'warning' ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white' :
+                        'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                    }`}>
+                    <span className="text-2xl">{milestone.icon}</span>
+                    <div className="flex-1">
+                        <p className="font-bold">{milestone.message}</p>
+                        <p className="text-sm opacity-80">{Math.round(milestone.progress)}% of {formatCurrency(currentGoal)}</p>
+                    </div>
+                    <Bell className="w-5 h-5 opacity-60" />
+                </div>
+            )}
+
             {/* Header / Welcome and Visualizers */}
             <div className="flex flex-col lg:flex-row gap-6">
                 <div className="flex-1 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[200px]">
@@ -137,7 +169,7 @@ const IndividualPanel = ({
                 </div>
 
                 {/* Goal Visualizer */}
-                <div className="flex items-center justify-center p-4">
+                <div className="flex items-center justify-center p-4 bg-slate-900/50 rounded-3xl min-h-[200px]">
                     <GoalVisualizer
                         current={myMetrics.sales}
                         target={currentGoal}
@@ -216,7 +248,7 @@ const IndividualPanel = ({
                     <h3 className="text-3xl font-black text-slate-800 dark:text-white mb-2">
                         {formatCurrency(lastYearSales)}
                     </h3>
-                    <div className={`flex items-center gap-2 text-xs font-semibold px-2 py-1 rounded w-fit ${yoyGrowth >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'}`}>
+                    <div className={`flex items - center gap - 2 text - xs font - semibold px - 2 py - 1 rounded w - fit ${yoyGrowth >= 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'} `}>
                         {yoyGrowth >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 rotate-180" />}
                         {Math.abs(yoyGrowth).toFixed(1)}% {yoyGrowth >= 0 ? 'Increase' : 'Decrease'}
                     </div>
