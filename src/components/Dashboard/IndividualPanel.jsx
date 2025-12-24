@@ -4,6 +4,7 @@ import { formatCurrency, formatNumber, formatBranchName } from '../../utils/form
 import GoalVisualizer from './GoalVisualizer';
 import TrendChart from './TrendChart';
 import { calculateRepStreaks } from '../../utils/calculations';
+import { getRank, getNextRankProgress } from '../../utils/ranks';
 
 const IndividualPanel = ({
     processedData,
@@ -100,6 +101,10 @@ const IndividualPanel = ({
         return null;
     }, [myMetrics.sales, currentGoal]);
 
+    // 7. Rank System
+    const rank = useMemo(() => getRank(streakStats.totalWins), [streakStats.totalWins]);
+    const rankProgress = useMemo(() => getNextRankProgress(streakStats.totalWins), [streakStats.totalWins]);
+
     const displayBranch = formatBranchName(user.Department);
 
     return (
@@ -120,18 +125,43 @@ const IndividualPanel = ({
             )}
 
             {/* Header / Welcome and Visualizers */}
-            <div className="flex flex-col lg:flex-row gap-6">
-                <div className="flex-1 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[200px]">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <Award className="w-64 h-64" />
+            <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
+                <div className="flex-1 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-white shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[180px] sm:min-h-[200px]">
+                    {/* Award Icon - Background outline (top right) */}
+                    <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                        <Award className="w-32 sm:w-64 h-32 sm:h-64" />
+                    </div>
+
+                    {/* Award Icon - Progress fill overlay (top right) */}
+                    <div
+                        className="absolute top-0 right-0 p-4 pointer-events-none overflow-hidden"
+                        style={{
+                            clipPath: `inset(${100 - rankProgress.progress}% 0 0 0)`
+                        }}
+                    >
+                        <Award className="w-32 sm:w-64 h-32 sm:h-64 text-blue-500 opacity-30" />
+                    </div>
+
+                    {/* Rank Badge - Icon in ribbon circle */}
+                    <div className="absolute top-[26px] right-[48px] sm:top-[60px] sm:right-[104px] z-20 pointer-events-none">
+                        <img
+                            src={`${import.meta.env.BASE_URL}Rank_Icons/${rank.icon}`}
+                            alt={rank.name}
+                            className="w-14 h-14 sm:w-20 sm:h-20 object-contain drop-shadow-lg"
+                        />
+                    </div>
+
+                    {/* Rank Name - Below the Award SVG, centered with it */}
+                    <div className="absolute bottom-4 sm:bottom-8 right-[80px] sm:right-[144px] translate-x-1/2 z-20 pointer-events-none">
+                        <span className="text-xs sm:text-sm font-bold text-white/60">{rank.name}</span>
                     </div>
 
                     {/* Welcome and Branch Info */}
-                    <div className="relative z-10">
-                        <h2 className="text-3xl font-black mb-2 flex items-center gap-3">
+                    <div className="relative z-10 pr-20 sm:pr-24">
+                        <h2 className="text-xl sm:text-3xl font-black mb-2 flex items-center gap-2 sm:gap-3">
                             Welcome, {user.name?.split(' ')[0]}! 👋
                         </h2>
-                        <p className="text-slate-400 font-medium flex items-center gap-2">
+                        <p className="text-slate-400 font-medium flex flex-wrap items-center gap-1 sm:gap-2 text-sm sm:text-base">
                             <MapPin className="w-4 h-4 text-blue-400" />
                             {displayBranch} Branch
                             <span className="text-slate-600">•</span>
@@ -141,29 +171,29 @@ const IndividualPanel = ({
                     </div>
 
                     {/* Streak Stats - Bottom of container */}
-                    <div className="relative z-10 flex gap-6 bg-white/5 backdrop-blur-sm p-4 rounded-2xl border border-white/10 w-fit mt-4">
-                        <div className="text-center px-3">
-                            <div className="flex items-center gap-1.5 text-amber-400 mb-1 justify-center">
-                                <Trophy className="w-4 h-4" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Goals Hit</span>
+                    <div className="relative z-10 flex gap-3 sm:gap-6 bg-white/5 backdrop-blur-sm p-2 sm:p-4 rounded-xl sm:rounded-2xl border border-white/10 w-fit mt-4 overflow-x-auto">
+                        <div className="text-center px-2 sm:px-3">
+                            <div className="flex items-center gap-1 sm:gap-1.5 text-amber-400 mb-1 justify-center">
+                                <Trophy className="w-3 h-3 sm:w-4 sm:h-4" />
+                                <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Goals Hit</span>
                             </div>
-                            <p className="text-2xl font-black leading-none">{streakStats.totalWins}</p>
+                            <p className="text-lg sm:text-2xl font-black leading-none">{streakStats.totalWins}</p>
                         </div>
-                        <div className="w-px h-10 bg-white/10 self-center" />
-                        <div className="text-center px-3">
-                            <div className="flex items-center gap-1.5 text-orange-500 mb-1 justify-center">
-                                <Flame className="w-4 h-4" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Current Streak</span>
+                        <div className="w-px h-8 sm:h-10 bg-white/10 self-center flex-shrink-0" />
+                        <div className="text-center px-2 sm:px-3">
+                            <div className="flex items-center gap-1 sm:gap-1.5 text-orange-500 mb-1 justify-center">
+                                <Flame className="w-3 h-3 sm:w-4 sm:h-4" />
+                                <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Current Streak</span>
                             </div>
-                            <p className="text-2xl font-black leading-none">{streakStats.currentStreak}</p>
+                            <p className="text-lg sm:text-2xl font-black leading-none">{streakStats.currentStreak}</p>
                         </div>
-                        <div className="w-px h-10 bg-white/10 self-center" />
-                        <div className="text-center px-3">
-                            <div className="flex items-center gap-1.5 text-blue-400 mb-1 justify-center">
-                                <Zap className="w-4 h-4" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Longest Streak</span>
+                        <div className="w-px h-8 sm:h-10 bg-white/10 self-center flex-shrink-0" />
+                        <div className="text-center px-2 sm:px-3">
+                            <div className="flex items-center gap-1 sm:gap-1.5 text-blue-400 mb-1 justify-center">
+                                <Zap className="w-3 h-3 sm:w-4 sm:h-4" />
+                                <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Longest Streak</span>
                             </div>
-                            <p className="text-2xl font-black leading-none">{streakStats.longestStreak}</p>
+                            <p className="text-lg sm:text-2xl font-black leading-none">{streakStats.longestStreak}</p>
                         </div>
                     </div>
                 </div>
