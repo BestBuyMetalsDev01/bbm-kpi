@@ -5,6 +5,75 @@
 
 import { calculateTotalWorkDays, calculateElapsedWorkDays } from './dateUtils';
 
+// ============================================================================
+// SHARED HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Resolves month-specific overrides for rep settings.
+ * @param {Object} repSettings - Base rep settings
+ * @param {number} year - Target year
+ * @param {number} month - Target month (0-indexed)
+ * @returns {Object} - Rep settings with any month overrides applied
+ */
+export const resolveMonthOverride = (repSettings, year, month) => {
+    if (!repSettings?.months) return repSettings;
+
+    const paddedMonthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+    const unpaddedMonthKey = `${year}-${month + 1}`;
+    const monthOverride = repSettings.months[paddedMonthKey] || repSettings.months[unpaddedMonthKey];
+
+    return monthOverride ? { ...repSettings, ...monthOverride } : repSettings;
+};
+
+/**
+ * Calculates a rep's monthly sales goal.
+ * @param {Object} params
+ * @param {Object} params.repSettings - Rep-specific settings (with overrides already applied)
+ * @param {Object} params.locGoals - Location goals from adminSettings
+ * @param {number} params.year - Target year
+ * @param {number} params.monthIndex - Target month (0-indexed)
+ * @returns {number} - The calculated monthly sales goal
+ */
+export const calculateMonthlyGoal = ({ repSettings, locGoals, year, monthIndex }) => {
+    const targetPct = parseFloat(repSettings?.targetPct) || 0;
+    const manualPersonalGoal = parseFloat(repSettings?.personalGoal);
+
+    // If manual goal is set, use it directly
+    if (!isNaN(manualPersonalGoal) && manualPersonalGoal > 0) {
+        return manualPersonalGoal;
+    }
+
+    // Calculate from yearlySales × monthlyPct × targetPct
+    const yearlySalesForYear = parseFloat(locGoals?.[`yearlySales${year}`]) || parseFloat(locGoals?.yearlySales) || 0;
+    const monthlyPct = locGoals?.monthlyPcts?.[monthIndex] ?? 8.33;
+    const branchMonthGoal = yearlySalesForYear * (monthlyPct / 100);
+
+    return branchMonthGoal * (targetPct / 100);
+};
+
+/**
+ * Filters data by user (employee ID or name).
+ * @param {Array} data - Array of data rows
+ * @param {Object} user - User object with employeeId and/or name
+ * @returns {Array} - Filtered rows belonging to the user
+ */
+export const filterByUser = (data, user) => {
+    if (!data || !user) return [];
+
+    return data.filter(row => {
+        if (user.employeeId) {
+            return row.strSalesperson === user.employeeId ||
+                row.strSalesperson === `P${user.employeeId} `;
+        }
+        return row.strName === user.name;
+    });
+};
+
+// ============================================================================
+// MAIN CALCULATION FUNCTIONS
+// ============================================================================
+
 /**
  * Filters raw data based on the selected date and period (month or YTD).
  */
@@ -38,49 +107,34 @@ export const calculateRepMetrics = (row, {
     elapsedDays,
     locationTotals
 }) => {
-    let repSettings = adminSettings.repSettings?.[row.strSalesperson] || {};
     const rowDate = row._parsedDate;
+    const currentYear = rowDate ? rowDate.getFullYear() : selectedDate.getFullYear();
+    const currentMonthIndex = rowDate ? rowDate.getMonth() : selectedDate.getMonth();
 
-    // Apply monthly overrides if they exist
-    if (rowDate) {
-        const paddedMonthKey = `${rowDate.getFullYear()}-${String(rowDate.getMonth() + 1).padStart(2, '0')}`;
-        const unpaddedMonthKey = `${rowDate.getFullYear()}-${rowDate.getMonth() + 1}`;
-
-        // Check both padded (2024-01) and unpadded (2024-1) formats for compatibility
-        const monthOverride = repSettings.months?.[paddedMonthKey] || repSettings.months?.[unpaddedMonthKey];
-        if (monthOverride) {
-            repSettings = { ...repSettings, ...monthOverride };
-        }
-    }
+    // Get rep settings with month overrides applied
+    const baseRepSettings = adminSettings.repSettings?.[row.strSalesperson] || {};
+    const repSettings = rowDate
+        ? resolveMonthOverride(baseRepSettings, currentYear, currentMonthIndex)
+        : baseRepSettings;
 
     // Days worked for this specific calculation
     const rw = parseFloat(repSettings.daysWorked) || parseFloat(adminSettings.daysWorked) || elapsedDays || 1;
     const locGoals = adminSettings.locationGoals[row.strDepartment] || {};
-    const currentMonthIndex = rowDate ? rowDate.getMonth() : selectedDate.getMonth();
-    const targetPct = parseFloat(repSettings.targetPct) || 0;
 
-    // 1. Calculate Base Goal
-    let totalSalesGoal = 0;
-    const manualPersonalGoal = parseFloat(repSettings.personalGoal);
-
-    if (!isNaN(manualPersonalGoal) && manualPersonalGoal > 0) {
-        totalSalesGoal = manualPersonalGoal;
-    } else {
-        // Calculate branch goal from yearlySales × monthlyPct (from Admin Panel settings)
-        // Support year-specific yearly sales: yearlySales2024, yearlySales2025, etc.
-        const currentYear = rowDate ? rowDate.getFullYear() : selectedDate.getFullYear();
-        const yearlySalesForYear = parseFloat(locGoals[`yearlySales${currentYear}`]) || parseFloat(locGoals.yearlySales) || 0;
-
-        const monthlyPct = (locGoals.monthlyPcts?.[currentMonthIndex] || 8.33);
-        const branchMonthGoal = yearlySalesForYear * (monthlyPct / 100);
-        totalSalesGoal = branchMonthGoal * (targetPct / 100);
-    }
+    // Calculate goal using shared helper
+    const totalSalesGoal = calculateMonthlyGoal({
+        repSettings,
+        locGoals,
+        year: currentYear,
+        monthIndex: currentMonthIndex
+    });
 
     // 2. Pro-rated Goals
     const toDateSalesGoal = totalSalesGoal * (rw / totalDays);
     const salesToMeetGoal = totalSalesGoal - row.curOrderTotals;
     const closeRateDollar = locGoals.closeRateDollar || 30;
     const estGoal = totalSalesGoal / (closeRateDollar / 100);
+    const targetPct = parseFloat(repSettings.targetPct) || 0;
 
     return {
         ...row,
@@ -241,32 +295,19 @@ export const calculateRepStreaks = (myHistory, adminSettings) => {
         // Skip future months
         if (rowYear > currentYear || (rowYear === currentYear && rowMonth > currentMonth)) return;
 
-        let repSettings = adminSettings.repSettings?.[row.strSalesperson] || {};
-        const paddedMonthKey = `${rowYear}-${String(rowMonth + 1).padStart(2, '0')}`;
-        const unpaddedMonthKey = `${rowYear}-${rowMonth + 1}`;
-
-        const monthOverride = repSettings.months?.[paddedMonthKey] || repSettings.months?.[unpaddedMonthKey];
-        if (monthOverride) {
-            repSettings = { ...repSettings, ...monthOverride };
-        }
+        // Get rep settings with month overrides applied
+        const baseRepSettings = adminSettings.repSettings?.[row.strSalesperson] || {};
+        const repSettings = resolveMonthOverride(baseRepSettings, rowYear, rowMonth);
 
         const locGoals = adminSettings.locationGoals[row.strDepartment] || {};
-        const targetPct = parseFloat(repSettings.targetPct) || 0;
 
-        let monthlySalesGoal = 0;
-        const manualPersonalGoal = parseFloat(repSettings.personalGoal);
-
-        if (!isNaN(manualPersonalGoal) && manualPersonalGoal > 0) {
-            monthlySalesGoal = manualPersonalGoal;
-        } else {
-            // Calculate branch goal from yearlySales × monthlyPct
-            // Support year-specific yearly sales: yearlySales2024, yearlySales2025, etc.
-            const yearlySalesForYear = parseFloat(locGoals[`yearlySales${rowYear}`]) || parseFloat(locGoals.yearlySales) || 0;
-
-            const monthlyPct = (locGoals.monthlyPcts?.[rowMonth] || 8.33);
-            const branchMonthGoal = yearlySalesForYear * (monthlyPct / 100);
-            monthlySalesGoal = branchMonthGoal * (targetPct / 100);
-        }
+        // Calculate goal using shared helper
+        const monthlySalesGoal = calculateMonthlyGoal({
+            repSettings,
+            locGoals,
+            year: rowYear,
+            monthIndex: rowMonth
+        });
 
         const hasWon = row.curOrderTotals >= monthlySalesGoal && monthlySalesGoal > 0;
         const isCurrentMonth = rowMonth === currentMonth && rowYear === currentYear;

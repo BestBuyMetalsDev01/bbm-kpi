@@ -3,7 +3,7 @@ import { TrendingUp, DollarSign, Target, Award, MapPin, Calendar, Globe, Flame, 
 import { formatCurrency, formatNumber, formatBranchName } from '../../utils/formatters';
 import GoalVisualizer from './GoalVisualizer';
 import TrendChart from './TrendChart';
-import { calculateRepStreaks } from '../../utils/calculations';
+import { calculateRepStreaks, filterByUser } from '../../utils/calculations';
 import { getRank, getNextRankProgress } from '../../utils/ranks';
 
 const IndividualPanel = ({
@@ -15,17 +15,9 @@ const IndividualPanel = ({
     adminSettings,
     selectedDate
 }) => {
-    // 1. Filter metrics (Current view)
-    const myData = processedData.filter(row => {
-        if (user.employeeId) return row.strSalesperson === user.employeeId || row.strSalesperson === `P${user.employeeId} `;
-        return row.strName === user.name;
-    });
-
-    // Filter FULL history for this user (for trends)
-    const myHistory = fullHistory.filter(row => {
-        if (user.employeeId) return row.strSalesperson === user.employeeId || row.strSalesperson === `P${user.employeeId} `;
-        return row.strName === user.name;
-    });
+    // Filter data for this user using shared helper
+    const myData = filterByUser(processedData, user);
+    const myHistory = filterByUser(fullHistory, user);
 
     // History Logic
     const today = new Date();

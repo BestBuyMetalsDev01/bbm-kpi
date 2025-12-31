@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BarChart3, ChevronDown, Clock, Sun, Moon, Settings, Shield, Eye, EyeOff, User, PieChart, Search, Trophy } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { BarChart3, ChevronDown, Clock, Sun, Moon, Settings, Shield, Eye, EyeOff, User, PieChart, Search, Trophy, RotateCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { formatBranchName } from '../../utils/formatters';
 
@@ -24,12 +24,23 @@ const Header = ({
     const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [isViewOpen, setIsViewOpen] = useState(false);
+    const dateInputRef = useRef(null);
     const isKnoxville = selectedLocation === 'Knoxville';
     const themeColor = isKnoxville ? '#FF8200' : '#DE2A24';
 
     const handleLocationSelect = (loc) => {
         setSelectedLocation(loc);
         setIsOpen(false);
+    };
+
+    const handleDateClick = () => {
+        try {
+            if (dateInputRef.current) {
+                dateInputRef.current.showPicker();
+            }
+        } catch (error) {
+            console.error('Error showing date picker:', error);
+        }
     };
 
     return (
@@ -73,11 +84,18 @@ const Header = ({
                         </>
                     )}
 
-                    <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl px-1 sm:px-3 py-0.5 sm:py-1.5 shadow-inner flex-shrink-0">
-                        <Clock className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-slate-400" />
+                    <div
+                        onClick={handleDateClick}
+                        className="relative flex items-center gap-1 sm:gap-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl px-1 sm:px-3 py-0.5 sm:py-1.5 shadow-inner flex-shrink-0 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
+                    >
+                        <Clock className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-slate-400 pointer-events-none" />
+                        <span className="text-[9px] sm:text-sm font-bold text-slate-700 dark:text-slate-200 w-18 sm:w-32 text-center pointer-events-none">
+                            {selectedDate ? selectedDate.toLocaleDateString('default', { month: 'long', year: 'numeric' }) : 'Select Date'}
+                        </span>
                         <input
+                            ref={dateInputRef}
                             type="month"
-                            className="text-[9px] sm:text-sm font-bold bg-transparent text-slate-700 dark:text-slate-200 outline-none border-none p-0 w-18 sm:w-32 cursor-pointer"
+                            className="absolute opacity-0 w-0 h-0 pointer-events-none"
                             value={selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}` : ''}
                             onChange={(e) => {
                                 const [y, m] = e.target.value.split('-');
@@ -86,7 +104,7 @@ const Header = ({
                         />
                     </div>
 
-                    {viewMode === 'comparison' && (
+                    {!['rep', 'executive', 'leaderboard'].includes(viewMode) && (
                         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 rounded-lg p-0.5 sm:p-1 ml-1 sm:ml-2 border border-slate-200 dark:border-slate-700">
                             <button
                                 onClick={() => setDateMode('monthly')}
@@ -153,7 +171,7 @@ const Header = ({
                         className="p-1.5 sm:p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm flex items-center justify-center"
                         title="Refresh Data"
                     >
-                        <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                        <RotateCw className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                     </button>
 
                     <button

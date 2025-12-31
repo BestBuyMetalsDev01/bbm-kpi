@@ -3,8 +3,8 @@ import React, { useEffect, useRef } from 'react';
 const SnowEffect = ({ weather }) => {
     const canvasRef = useRef(null);
 
-    // Don't show snow if weather data exists and temp is above 40°F
-    const shouldShowSnow = !weather || weather.temp === null || weather.temp <= 40;
+    // Use the isSnowing property calculated by the hook
+    const shouldShowSnow = weather?.isSnowing;
 
     useEffect(() => {
         if (!shouldShowSnow) return;

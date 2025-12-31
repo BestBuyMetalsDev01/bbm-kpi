@@ -7,9 +7,10 @@ import ManagerPanel from './Dashboard/ManagerPanel';
 import IndividualPanel from './Dashboard/IndividualPanel';
 import { useAuth } from '../context/AuthContext';
 import { useWeather } from '../hooks/useWeather';
-import SnowEffect from './SnowEffect';
-import ChristmasLights from './ChristmasLights';
-import Fireworks from './Fireworks';
+import SnowEffect from './effects/SnowEffect';
+import ChristmasLights from './effects/ChristmasLights';
+import Fireworks from './effects/Fireworks';
+import July4thFireworks from './effects/July4thFireworks';
 import LocationComparisonTable from './Dashboard/LocationComparisonTable';
 import LocationTrendChart from './Dashboard/LocationTrendChart';
 import TrendChart from './Dashboard/TrendChart';
@@ -86,6 +87,7 @@ const ReportDashboard = ({ initialViewMode }) => {
         <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} font-sans antialiased overflow-x-hidden relative`}>
             <SnowEffect weather={weather} />
             <ChristmasLights weather={weather} />
+            <July4thFireworks />
             {isGoalReached && <Fireworks />}
 
             <div className="relative z-20">
