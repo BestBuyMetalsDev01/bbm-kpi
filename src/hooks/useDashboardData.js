@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { calculateTotalWorkDays as getMonthlyWorkDays, calculateElapsedWorkDays as getElapsedWorkDays } from '../utils/dateUtils';
 import { filterDataByPeriod, calculateRepMetrics, calculateBranchSummary } from '../utils/calculations';
+import { supabase } from '../utils/supabase';
 
-const GOOGLE_SHEET_API_URL = "";
 
 export const useDashboardData = (initialViewMode = 'viewer') => {
     const { user, setUser } = useAuth();
@@ -216,189 +216,100 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     }, [adminSettings]);
 
 
-    // Cloud Persistence: Fetch Settings on Mount
+    // Cloud Persistence: Sync Everything from Supabase on Mount
     useEffect(() => {
-        // If already fetched or no user email (wait for auth), skip
         if (fetchedRef.current || !user?.email) return;
-
-        // Mark as fetched immediately to prevent race conditions/double invokes
         fetchedRef.current = true;
 
-        if (!adminSettings.googleSheetUrl) return;
-
-        const fetchCloudSettings = async () => {
-            console.log("Fetching Cloud Settings...");
+        const syncInitialData = async () => {
+            console.log("Supabase: Syncing Initial Settings & User Info for:", user.email);
             try {
-                const separator = adminSettings.googleSheetUrl.includes('?') ? '&' : '?';
-                const url = `${adminSettings.googleSheetUrl}${separator}type=settings`;
+                // 1. Fetch Settings
+                const { data: settingsRows, error: settingsError } = await supabase
+                    .from('dashboard_settings')
+                    .select('data')
+                    .eq('id', 'primary');
 
-                const response = await fetch(url);
-                const cloudSettings = await response.json();
-
-                if (cloudSettings && Object.keys(cloudSettings).length > 0) {
-                    console.log("[DEBUG] Raw Cloud Settings:", cloudSettings);
-                    setAdminSettings(prev => {
-                        const merged = {
-                            ...prev,
-                            ...cloudSettings,
-                            // Deep merge repSettings to avoid losing months if cloud version is partial
-                            repSettings: {
-                                ...prev.repSettings,
-                                ...(cloudSettings.repSettings || {})
-                            },
-                            // Deep merge locationGoals
-                            locationGoals: {
-                                ...prev.locationGoals,
-                                ...(cloudSettings.locationGoals || {})
-                            },
-                            visibleRepIds: cloudSettings.visibleRepIds && cloudSettings.visibleRepIds.length > 0
-                                ? cloudSettings.visibleRepIds
-                                : prev.visibleRepIds,
-                            initializedLocations: cloudSettings.initializedLocations && cloudSettings.initializedLocations.length > 0
-                                ? cloudSettings.initializedLocations
-                                : prev.initializedLocations
-                        };
-                        console.log("[DEBUG] Merged AdminSettings:", merged);
-                        return merged;
-                    });
+                if (settingsError) {
+                    console.error("Supabase: Settings fetch error:", settingsError);
+                } else if (settingsRows && settingsRows.length > 0) {
+                    console.log("Supabase: Loaded remote settings.");
+                    setAdminSettings(prev => ({ ...prev, ...settingsRows[0].data }));
+                } else {
+                    console.log("Supabase: No remote settings found, using defaults.");
                 }
-            } catch (error) {
-                console.error("Failed to fetch cloud settings:", error);
+
+                // 2. Fetch User/Employee Info
+                const { data: empRows, error: empError } = await supabase
+                    .from('employees')
+                    .select('*')
+                    .eq('email', user.email.toLowerCase());
+
+                const empInfo = empRows && empRows.length > 0 ? empRows[0] : null;
+
+                if (empError) {
+                    console.error("Supabase: Employee fetch error (This is expected if user is not in directory):", empError);
+                }
+
+                // Assign roles regardless of whether employee lookup succeeded (fallback to rep or admin check)
+                const userEmail = user.email.toLowerCase();
+                const customRole = adminSettings.permissions?.[userEmail];
+                let role = 'rep';
+
+                // Super Admin Override
+                if (userEmail === 'jacob@bestbuymetals.com' || userEmail === 'nathan@bestbuymetals.com') {
+                    role = 'admin';
+                } else if (customRole) {
+                    role = customRole;
+                } else if (empInfo) {
+                    const title = empInfo.job_title?.toLowerCase() || '';
+                    if (title.includes('manager')) role = 'manager';
+                    else if (title.includes('admin')) role = 'admin';
+                    else if (title.includes('executive')) role = 'executive';
+                }
+
+                console.log(`Supabase: Resolved User Role: ${role}`);
+                setUserRole(role);
+
+                // Initial Location handling
+                if (empInfo?.department && Object.keys(adminSettings.locationGoals).includes(empInfo.department)) {
+                    setSelectedLocation(empInfo.department);
+                }
+
+                // Initial View Mode logic
+                if (role === 'rep') setViewMode('rep');
+                else if (role === 'manager') setViewMode('viewer');
+                else if (role === 'admin' || role === 'executive') {
+                    setViewMode(role === 'admin' ? 'admin' : 'comparison');
+                    setSelectedLocation('All');
+                }
+
+                if (empInfo) {
+                    setUser(prev => ({ ...prev, employeeId: empInfo.employee_id, ...empInfo }));
+                }
+            } catch (err) {
+                console.error("Supabase sync failed:", err);
             }
         };
 
-        const fetchUserInfo = async () => {
-            if (!user?.email) return;
-
-            // Use dedicated Directory URL (or fallback to empty if not set)
-            // We default this to the user's provided URL in the initial state if possible, 
-            // but for now we'll check if it exists in adminSettings.
-            const dirUrl = adminSettings.directoryScriptUrl;
-
-            if (!dirUrl) {
-                console.log("No Directory URL configured.");
-                return;
-            }
-
-            console.log("Fetching User Info from Directory API:", user.email);
-            try {
-                // The external script likely takes ?email=... directly or might need a 'type' param depending on its code.
-                // User said: "instead of integrating ... just do a get request to this one"
-                // and provided headers: Location, Department, ...
-                // Use usually assumes GET ?email=... returns JSON. 
-                // Let's assume it accepts ?email=user@email.com
-
-                const separator = dirUrl.includes('?') ? '&' : '?';
-                const url = `${dirUrl}${separator}type=userInfo&email=${encodeURIComponent(user.email)}`;
-
-                const response = await fetch(url);
-                const userInfo = await response.json();
-
-                if (userInfo) {
-                    console.log("User Directory Info:", userInfo);
-
-                    // 1. Set Location (User said "Department" header maps to location)
-                    // The API response keys usually match the headers provided (e.g. "Department", "Job Title")
-                    const userLocation = userInfo['Department'];
-                    if (userLocation && Object.keys(adminSettings.locationGoals).includes(userLocation)) {
-                        setSelectedLocation(userLocation);
-                        console.log("Auto-selected Location:", userLocation);
-                    }
-
-                    // 2. Set View Mode (Role)
-                    const customRole = adminSettings.permissions?.[user.email.toLowerCase()];
-                    let role = 'rep';
-
-                    if (user.email.toLowerCase() === 'jacob@bestbuymetals.com') {
-                        role = 'admin';
-                    } else if (customRole) {
-                        console.log("Applying custom permission role:", customRole);
-                        role = customRole;
-                    } else {
-                        const title = (userInfo['Job Title'] || "").toLowerCase();
-                        if (title.includes("admin") || title.includes("president") || title.includes("owner")) {
-                            role = "admin";
-                        } else if (title.includes("executive") || title.includes("director") || title.includes("vp")) {
-                            role = "executive";
-                        } else if (title.includes("manager")) {
-                            role = "manager";
-                        }
-                    }
-
-                    setUserRole(role);
-                    // Default viewMode based on role
-                    if (role === 'rep') setViewMode('rep');
-                    else if (role === 'manager') setViewMode('viewer');
-                    else if (role === 'executive') {
-                        setViewMode('comparison');
-                        setSelectedLocation('All');
-                    }
-                    else if (role === 'admin') {
-                        setViewMode('admin');
-                        setSelectedLocation('All');
-                    }
-
-                    // 3. Save Paradigm Employee ID (if available and not already set)
-                    const empId = userInfo['Paradigm Employee ID'];
-                    if (empId && user.employeeId !== empId) {
-                        console.log("Setting Employee ID:", empId);
-                        // We use the exposed setUser from AuthContext to update the global user object
-                        // Note: We need to import setUser from useAuth destructuring at the top of the file
-                        setUser(prev => ({ ...prev, employeeId: empId, ...userInfo }));
-                    }
-                }
-            } catch (error) {
-                console.error("Failed to fetch user info:", error);
-            }
-        };
-
-        // Chain the calls: Settings first (to get updated URLs if any), then User Info
-        fetchCloudSettings().then(() => {
-            fetchUserInfo();
-        });
-
-    }, [user?.email]); // Depend only on user.email presence. fetchedRef handles uniqueness.
+        syncInitialData();
+    }, [user?.email]);
 
     // Cloud Persistence: Save Function
     const [saveStatus, setSaveStatus] = useState({ loading: false, success: false, error: null });
 
     const saveSettingsToCloud = async () => {
-        if (!adminSettings.googleSheetUrl) {
-            setSaveStatus({ loading: false, success: false, error: "No Script URL configured" });
-            return;
-        }
-
         setSaveStatus({ loading: true, success: false, error: null });
         try {
-            const payload = {
-                action: 'saveSettings',
-                settings: adminSettings
-            };
+            const { error } = await supabase
+                .from('dashboard_settings')
+                .upsert({ id: 'primary', data: adminSettings, updated_at: new Date() });
 
-            console.log("[DEBUG] Syncing to Cloud. Body:", payload);
-
-            // Reverting to no-cors for Google Apps Script stability. 
-            // This bypasses the preflight check which Google usually blocks.
-            // Using text/plain is critical to avoid CORS preflight (OPTIONS) requests.
-            await fetch(adminSettings.googleSheetUrl, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(payload)
-            });
-
-            // With no-cors, the response is opaque (we can't read it). 
-            // We assume it sent successfully if the promise resolved.
+            if (error) throw error;
             setSaveStatus({ loading: false, success: true, error: null });
-
-            console.log("Cloud sync request sent successfully.");
-
-
-            // Clear success message after 3 seconds
             setTimeout(() => setSaveStatus(prev => ({ ...prev, success: false })), 3000);
-
         } catch (error) {
-            console.error("Save to Cloud Failed:", error);
+            console.error("Supabase Settings Save Failed:", error);
             setSaveStatus({ loading: false, success: false, error: error.message });
         }
     };
@@ -439,188 +350,126 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     }, [selectedDate, adminSettings.holidays]);
 
     useEffect(() => {
-        const fetchSheetData = async () => {
+        const fetchSupabaseData = async () => {
             setLoading(true);
             try {
-                let url = adminSettings.googleSheetUrl || GOOGLE_SHEET_API_URL;
-                if (!url) throw new Error("No API URL");
-                if (window.location.hostname === 'localhost' && url.includes('script.google.com')) {
-                    const path = url.split('script.google.com')[1];
-                    url = `/google-api${path}`;
+                console.log("Supabase: Fetching KPI data for dashboard...");
+                // 1. Fetch KPI data with pagination
+                let allKpiData = [];
+                let from = 0;
+                let step = 1000;
+                let hasMore = true;
+
+                while (hasMore) {
+                    const { data: kpiPage, error: kpiError } = await supabase
+                        .from('kpi_data')
+                        .select('*')
+                        .range(from, from + step - 1);
+
+                    if (kpiError) throw kpiError;
+
+                    if (kpiPage && kpiPage.length > 0) {
+                        allKpiData = [...allKpiData, ...kpiPage];
+                        from += step;
+                        // If we got fewer than the step size, we've reached the end
+                        if (kpiPage.length < step) hasMore = false;
+                        // Safety cap at 50,000 rows to prevent infinite loops/memory issues
+                        if (allKpiData.length >= 50000) hasMore = false;
+                    } else {
+                        hasMore = false;
+                    }
                 }
-                const response = await fetch(url);
-                const jsonData = await response.json();
-                if (!jsonData || jsonData.length < 2) throw new Error("Invalid Data");
 
-                const headers = jsonData[0];
-                const keyMap = {
-                    "Order Totals (Current)": "curOrderTotals",
-                    "Order Totals": "curOrderTotals",
-                    "Sales Totals": "curOrderTotals",
-                    "Orders Count (Current)": "intOrders",
-                    "Order Count": "intOrders",
-                    "Orders Count": "intOrders",
-                    "intOrders": "intOrders",
-                    "Quoted (Current)": "curQuoted",
-                    "Quoted Totals": "curQuoted",
-                    "Quotes Count (Current)": "intQuotes",
-                    "Quotes Count": "intQuotes",
-                    "Quote Count": "intQuotes",
-                    "Sub Total": "curSubTotal",
-                    "Invoice Profit": "curInvoiceProfit",
-                    "Invoice Count": "intInvoices",
-                    "Profit %": "decProfitPercent",
-                    "Salesperson ID": "strSalesperson",
-                    "Salesperson Name": "strName",
-                    "Department Name": "strDepartment",
-                    "Order Totals YTD": "curOrderTotalsYTD",
-                    "Orders Count YTD": "intOrdersYTD",
-                    "Quoted YTD": "curQuotedYTD",
-                    "Date": "dateStr",
-                    "date": "dateStr",
-                    "Order Date": "dateStr",
-                    "Invoice Date": "dateStr",
-                    "Period": "dateStr",
-                    "Year": "orderYear",
-                    "year": "orderYear",
-                    "Month": "orderMonth",
-                    "month": "orderMonth"
-                };
+                console.log(`Supabase: Received ${allKpiData.length} KPI rows total.`);
 
-                const rows = jsonData.slice(1).map(row => {
-                    const obj = {};
-                    headers.forEach((header, index) => {
-                        const key = keyMap[header] || header;
-                        const val = row[index];
-                        obj[key] = (typeof val === 'string' && !isNaN(Number(val)) && val.trim() !== '') ? Number(val) : val;
-                    });
+                if (allKpiData.length > 0) {
+                    const years = [...new Set(allKpiData.map(r => new Date(r.period_date).getFullYear()))].sort();
+                    console.log(`Supabase: Data available for years: ${years.join(', ')}`);
+                }
 
-                    // Parse Date Immediately
-                    let d = null;
-                    if (obj.dateStr) {
-                        const s = String(obj.dateStr).trim();
-                        // Support Excel serial dates if they come as numbers? JSON usually strings
-                        const p = new Date(s);
-                        if (!isNaN(p.getTime())) d = p;
-                    }
-                    else if (obj.orderYear && obj.orderMonth) {
-                        const monStr = String(obj.orderMonth).trim();
-                        const year = Number(obj.orderYear);
-                        let monIdx = -1;
-                        if (!isNaN(Date.parse(monStr + " 1, 2000"))) monIdx = new Date(monStr + " 1, 2000").getMonth();
-                        else if (!isNaN(Number(monStr))) monIdx = Number(monStr) - 1;
-                        else {
-                            const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-                            monIdx = months.findIndex(m => monStr.toLowerCase().startsWith(m));
-                        }
-                        if (monIdx >= 0) d = new Date(year, monIdx, 1);
-                    }
-                    obj._parsedDate = d;
-
-                    // Normalize Departments (Handle 'National Sales' vs 'National' discrepancy)
-                    if (obj.strDepartment && typeof obj.strDepartment === 'string') {
-                        const dept = obj.strDepartment.trim().toLowerCase();
-                        if (dept.startsWith('national') || dept.startsWith('nationsl')) {
-                            obj.strDepartment = 'National';
-                        }
+                const rows = allKpiData.map(item => {
+                    // Timezone safe date parsing (ensures YYYY-MM-DD is treated as local 00:00:00)
+                    let pDate = new Date(item.period_date);
+                    if (item.period_date && typeof item.period_date === 'string' && item.period_date.includes('-')) {
+                        // Force local time by appending T00:00:00 if not already present
+                        const dateStr = item.period_date.split('T')[0] + 'T00:00:00';
+                        pDate = new Date(dateStr);
                     }
 
-                    return obj;
+                    return {
+                        strSalesperson: item.salesperson_id,
+                        strName: item.salesperson_name,
+                        strDepartment: item.department,
+                        strDepartmentID: item.department_id,
+                        curOrderTotals: item.order_totals || 0,
+                        intOrders: item.order_count || 0,
+                        curQuoted: item.quoted_amount || 0,
+                        intQuotes: item.quote_count || 0,
+                        curSubTotal: item.sub_total || 0,
+                        decProfitPercent: item.profit_percent || 0,
+                        curInvoiceProfit: item.invoice_profit || 0,
+                        intInvoices: item.invoice_count || 0,
+                        curOrderTotalsYTD: item.order_totals_ytd || 0,
+                        intOrdersYTD: item.order_count_ytd || 0,
+                        curQuotedYTD: item.quoted_amount_ytd || 0,
+                        intQuotesYTD: item.quote_count_ytd || 0,
+                        curSubTotalLast30: item.sub_total_last_30 || 0,
+                        decProfitPercentLast30: item.profit_percent_last_30 || 0,
+                        _parsedDate: pDate
+                    };
                 });
-
-                console.log("Parsed Rows:", rows.length, "Rows with Date:", rows.filter(r => r._parsedDate).length);
 
                 setData(rows);
 
-                // Fetch Product of the Month Data
-                try {
-                    const separator = url.includes('?') ? '&' : '?';
-                    const productsUrl = `${url}${separator}sheet=Product_Of_The_Month`;
-                    const productsResponse = await fetch(productsUrl);
-                    const pData = await productsResponse.json();
-                    if (pData && Array.isArray(pData) && pData.length > 1) {
-                        const pHeaders = pData[0];
-                        const pRows = pData.slice(1).map(row => {
-                            const obj = {};
-                            pHeaders.forEach((h, i) => {
-                                obj[h] = row[i];
-                            });
-                            return obj;
-                        });
-                        setProductsData(pRows);
+                // 2. Fetch Products
+                const { data: pData, error: pError } = await supabase
+                    .from('products_of_the_month')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (pError) {
+                    console.error("Supabase Product Fetch Error:", pError);
+                    setProductsData([]);
+                } else {
+                    console.log(`Supabase: Received ${pData?.length || 0} product rows.`);
+                    if (pData?.length === 0) {
+                        console.warn("Supabase: products_of_the_month table is EMPTY. Please run Sync Now.");
                     }
-                } catch (pe) {
-                    console.warn("Failed to fetch Product of the Month data:", pe);
+                    setProductsData(pData || []);
                 }
 
                 setLoading(false);
             } catch (error) {
-                generateMockData();
+                console.error("Supabase fetch error:", error);
+                setData([]);
+                setLoading(false);
             }
         };
 
-        const generateMockData = () => {
-            const locations = ['Cleveland', 'Chattanooga', 'Dalton', 'Knoxville', 'Asheville', 'Greenville', 'Charlotte', 'National'];
-            const mockRows = [];
-            const initialSettings = { ...adminSettings.repSettings };
-            let settingsChanged = false;
+        fetchSupabaseData();
+    }, [refreshTrigger]);
 
-            locations.forEach(loc => {
-                const numReps = Math.floor(Math.random() * 4) + 2;
-                for (let i = 1; i <= numReps; i++) {
-                    const repId = `${loc.substring(0, 3).toUpperCase()}${i.toString().padStart(3, '0')}`;
-                    const repName = `Rep ${i} - ${loc}`;
-                    const basePerformance = 0.5 + Math.random();
+    // Auto-select latest date if current date has no data
+    useEffect(() => {
+        if (!loading && data.length > 0) {
+            const currentPeriodData = filterDataByPeriod(data, selectedDate, dateMode);
 
-                    [2023, 2024, 2025].forEach(year => {
-                        const currentMonth = new Date().getMonth();
-                        const monthsToGen = year < 2025 ? 12 : currentMonth + 1;
+            if (currentPeriodData.length === 0) {
+                // Find latest date in data
+                const latest = data.reduce((max, row) => {
+                    const d = row._parsedDate;
+                    if (!d || isNaN(d.getTime())) return max;
+                    return (!max || d > max) ? d : max;
+                }, null);
 
-                        for (let month = 0; month < monthsToGen; month++) {
-                            const monthFactor = 0.7 + (Math.random() * 0.6);
-                            const yearGrowth = 1 + ((year - 2023) * 0.15);
-                            const performanceFactor = basePerformance * monthFactor * yearGrowth;
-
-                            const orderTotal = (80000 / 12) * performanceFactor;
-                            const profitPercent = 25 + (Math.random() * 10 - 5);
-                            const mockDate = new Date(year, month, 15);
-
-                            mockRows.push({
-                                strSalesperson: repId,
-                                strName: repName,
-                                strDepartment: loc,
-                                curOrderTotals: orderTotal,
-                                intOrders: Math.floor(1.5 * performanceFactor) || 1,
-                                curQuoted: orderTotal * (1.8 + Math.random()),
-                                intQuotes: Math.floor(4 * performanceFactor) || 2,
-                                curSubTotal: orderTotal * 0.95,
-                                curInvoiceProfit: (orderTotal * 0.95) * (profitPercent / 100),
-                                intInvoices: Math.floor(1.4 * performanceFactor) || 1,
-                                decProfitPercent: profitPercent,
-                                _parsedDate: mockDate
-                            });
-                        }
-                    });
-
-                    // Functional update to avoid closure staleness
-                    setAdminSettings(prev => {
-                        if (prev.repSettings[repId]) return prev;
-                        return {
-                            ...prev,
-                            repSettings: {
-                                ...prev.repSettings,
-                                [repId]: { targetPct: 10, daysWorked: prev.daysWorked }
-                            }
-                        };
-                    });
+                if (latest) {
+                    console.log("Dashboard: No data for current selection. Auto-selecting latest available date:", latest.toLocaleDateString());
+                    // Create a new date object for the first of that month
+                    setSelectedDate(new Date(latest.getFullYear(), latest.getMonth(), 1));
                 }
-            });
-            setData(mockRows);
-            setLoading(false);
-        };
-
-        setTimeout(fetchSheetData, 600);
-    }, [adminSettings.googleSheetUrl, refreshTrigger]);
+            }
+        }
+    }, [data, loading, dateMode]);
 
     const companyProcessedData = useMemo(() => {
         if (!data || data.length === 0) return [];
@@ -675,9 +524,13 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 decProfitPercent: 0
             };
             let miscCount = 0;
+
+            console.log(`Dashboard: Processing visibility for ${processedData.length} rows. Visible IDs:`, Array.from(visibleRepIds));
+
             processedData.forEach(row => {
-                if (visibleRepIds.has(row.strSalesperson)) shownRows.push(row);
-                else {
+                if (visibleRepIds.has(row.strSalesperson)) {
+                    shownRows.push(row);
+                } else {
                     miscCount++; misc.curOrderTotals += row.curOrderTotals; misc.intOrders += row.intOrders; misc.curQuoted += (row.curQuoted || 0);
                     misc.intQuotes += (row.intQuotes || 0); misc.curSubTotal += (row.curSubTotal || 0); misc.curInvoiceProfit += (row.curInvoiceProfit || 0);
                     misc.intInvoices += (row.intInvoices || 0); misc.totalSalesGoal += (row.totalSalesGoal || 0); misc.toDateSalesGoal += (row.toDateSalesGoal || 0);
@@ -692,6 +545,8 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             misc.convRateQty = misc.intQuotes > 0 ? (misc.intOrders / misc.intQuotes) * 100 : 0;
             if (miscCount > 0) shownRows.push(misc);
 
+            console.log(`Dashboard: Visibility filter result -> ${shownRows.length} rows shown.`);
+
             return shownRows.sort((a, b) => {
                 if (a.isMisc) return 1; if (b.isMisc) return -1;
                 const sortKey = sortConfig?.key || 'curOrderTotals';
@@ -703,7 +558,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         }
 
         return processedData;
-    }, [processedData, viewMode, visibleRepIds, sortConfig, adminSettings, calculateElapsedWorkDays]);
+    }, [processedData, viewMode, visibleRepIds, sortConfig, adminSettings, calculateElapsedWorkDays, selectedLocation]);
 
 
     const branchSummary = useMemo(() => {
@@ -769,62 +624,25 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         setShowManagerSettings(false);
     };
 
-    const handleTriggerAppsScript = async () => {
-        const url = adminSettings.googleSheetUrl;
-        if (!url) {
-            setTriggerStatus({ loading: false, error: "Trigger URL is required.", success: false });
-            return;
-        }
-
+    const handleTriggerSync = async () => {
         setTriggerStatus({ loading: true, error: null, success: false });
-
         try {
-            // Google Apps Script Web Apps allow POST requests but often require 'no-cors' mode 
-            // IF we assume the client is strictly browser-based and the script returns opaque response.
-            // However, the user prompt suggests standard 'POST' and expecting JSON.
-            // We'll try standard CORS request first. 
-            // IMPORTANT: Google Apps Script Web Apps follow redirects (302).
-
-            // Simple payload as requested
-            const payload = {};
+            // Note: Since bridge.gs runs in Apps Script, you still trigger it via an Apps Script URL
+            // if you want the "Sync Now" button to work. 
+            const url = adminSettings.googleSheetUrl;
+            if (!url) throw new Error("Trigger URL not configured.");
 
             const response = await fetch(url, {
                 method: 'POST',
-                // mode: 'no-cors', // If strictly needed, but let's try standard first as user implied JSON response
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(payload)
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'triggerSync' })
             });
 
-            // If mode is 'no-cors', response.ok is false and status is 0. 
-            // We can't read the body. We assume success if no error thrown?
-            // But the user prompt says "The script will return a JSON object".
-            // This implies normal CORS access or a server-side proxy.
-            // Let's assume the script headers are set to allow CORS or it's a standard access.
-
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(`Trigger failed: ${response.status} ${text}`);
-            }
-
-            const json = await response.json();
-
-            if (json.status === 'error') {
-                throw new Error(json.message || "Script reported an error.");
-            }
-
-            console.log("Trigger successful:", json);
             setTriggerStatus({ loading: false, error: null, success: true });
-
-            // Refresh data from the *Sheet* (GET request)
-            setRefreshTrigger(prev => prev + 1);
-
-            // Clear success message after delay
             setTimeout(() => setTriggerStatus(prev => ({ ...prev, success: false })), 5000);
-
+            setRefreshTrigger(prev => prev + 1);
         } catch (error) {
-            console.error("Trigger error:", error);
             setTriggerStatus({ loading: false, error: error.message, success: false });
         }
     };
@@ -838,7 +656,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         adminSettings, setAdminSettings,
         calculateTotalWorkDays, processedData, visibleData, companyProcessedData, branchSummary, toggleAdminMode, monthNames, handleSort,
         handleLocationGoalChange, handleLocationMonthPctChange, handleFormulaChange, toggleRepVisibility,
-        handleTriggerAppsScript, triggerStatus,
+        handleTriggerSync, triggerStatus,
         productsData,
         selectedDate, setSelectedDate,
         dateMode, setDateMode,

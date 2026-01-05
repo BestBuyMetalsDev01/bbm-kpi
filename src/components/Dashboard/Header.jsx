@@ -90,16 +90,23 @@ const Header = ({
                     >
                         <Clock className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-slate-400 pointer-events-none" />
                         <span className="text-[9px] sm:text-sm font-bold text-slate-700 dark:text-slate-200 w-18 sm:w-32 text-center pointer-events-none">
-                            {selectedDate ? selectedDate.toLocaleDateString('default', { month: 'long', year: 'numeric' }) : 'Select Date'}
+                            {selectedDate && !isNaN(selectedDate.getTime())
+                                ? selectedDate.toLocaleDateString('default', { month: 'long', year: 'numeric' })
+                                : 'Select Date'}
                         </span>
                         <input
                             ref={dateInputRef}
                             type="month"
                             className="absolute opacity-0 w-0 h-0 pointer-events-none"
-                            value={selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}` : ''}
+                            value={selectedDate && !isNaN(selectedDate.getTime())
+                                ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`
+                                : ''}
                             onChange={(e) => {
+                                if (!e.target.value) return;
                                 const [y, m] = e.target.value.split('-');
-                                setSelectedDate(new Date(y, m - 1, 1));
+                                const newDate = new Date(parseInt(y), parseInt(m) - 1, 1);
+                                console.log("Header: Date changed to", newDate.toLocaleDateString());
+                                setSelectedDate(newDate);
                             }}
                         />
                     </div>
