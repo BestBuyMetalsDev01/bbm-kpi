@@ -242,6 +242,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 const { data: branchRows } = await supabase.from('branch_settings').select('*');
                 const locationGoals = {};
                 if (branchRows) {
+                    console.log("Supabase: Branch Rows:", branchRows);
                     branchRows.forEach(row => {
                         locationGoals[row.branch_id] = {
                             yearlySales: 0, // Fallback

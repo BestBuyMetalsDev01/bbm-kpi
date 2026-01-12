@@ -52,9 +52,19 @@ export const calculateMonthlyGoal = ({ repSettings, locGoals, year, monthIndex }
     }
 
     // Calculate from yearlySales × monthlyPct × targetPct
-    const yearlySalesForYear = parseFloat(locGoals?.[`yearlySales${year}`]) || parseFloat(locGoals?.yearlySales) || 0;
+    // Checking multiple key formats based on user feedback
+    const yearlySalesForYear = parseFloat(locGoals?.[`yearlySales${year}`])
+        || parseFloat(locGoals?.[`yearlyGoals${year}`])
+        || parseFloat(locGoals?.yearlySales)
+        || 0;
+
     const monthlyPct = locGoals?.monthlyPcts?.[monthIndex] ?? 8.33;
     const branchMonthGoal = yearlySalesForYear * (monthlyPct / 100);
+
+    if (yearlySalesForYear === 0) {
+        console.warn(`Validation: Zero Yearly Sales found for Year ${year}. Checked keys: yearlySales${year}, yearlySales.`);
+        console.log("LocGoals Object:", locGoals);
+    }
 
     return branchMonthGoal * (targetPct / 100);
 };
