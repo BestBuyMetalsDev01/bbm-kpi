@@ -23,7 +23,14 @@ export const resolveMonthOverride = (repSettings, year, month) => {
     const unpaddedMonthKey = `${year}-${month + 1}`;
     const monthOverride = repSettings.months[paddedMonthKey] || repSettings.months[unpaddedMonthKey];
 
-    return monthOverride ? { ...repSettings, ...monthOverride } : repSettings;
+    if (!monthOverride) return repSettings;
+
+    // Filter out undefined/null values from override so they don't mask base settings
+    const cleanOverride = Object.fromEntries(
+        Object.entries(monthOverride).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    );
+
+    return { ...repSettings, ...cleanOverride };
 };
 
 /**
