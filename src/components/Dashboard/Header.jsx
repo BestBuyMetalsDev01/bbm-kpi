@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { BarChart3, ChevronDown, Clock, Sun, Moon, Settings, Shield, Eye, EyeOff, User, PieChart, Search, Trophy, RotateCw } from 'lucide-react';
+import { BarChart3, ChevronDown, Clock, Sun, Moon, Settings, Shield, Eye, EyeOff, User, PieChart, Search, Trophy, RotateCw, Pin } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { formatBranchName } from '../../utils/formatters';
 
@@ -19,18 +19,35 @@ const Header = ({
     selectedDate,
     setSelectedDate,
     dateMode,
-    setDateMode
+    setDateMode,
+    updateUserDefaultLocation
 }) => {
     const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [isViewOpen, setIsViewOpen] = useState(false);
+    const [pinning, setPinning] = useState(null); // Track which location is currently being pinned
     const dateInputRef = useRef(null);
     const isKnoxville = selectedLocation === 'Knoxville';
     const themeColor = isKnoxville ? '#FF8200' : '#DE2A24';
 
+    // Check if a location is the current default
+    const isDefaultLocation = (loc) => user?.metadata?.defaultLocation === loc;
+
     const handleLocationSelect = (loc) => {
         setSelectedLocation(loc);
         setIsOpen(false);
+    };
+
+    const handleSetDefault = async (e, loc) => {
+        e.stopPropagation(); // Don't trigger location select
+        try {
+            setPinning(loc);
+            await updateUserDefaultLocation(loc);
+        } catch (err) {
+            console.error("Header: Error setting default location:", err);
+        } finally {
+            setPinning(null);
+        }
     };
 
     const handleDateClick = () => {
@@ -59,23 +76,44 @@ const Header = ({
                         <>
                             <div className="relative flex-shrink-0">
                                 <button
-                                    onClick={() => (userRole === 'admin' || userRole === 'executive') && setIsOpen(!isOpen)}
-                                    className={`flex items-center gap-1 sm:gap-2 transition-colors focus:outline-none text-sm sm:text-2xl font-bold ${(userRole !== 'admin' && userRole !== 'executive') ? 'cursor-default' : 'hover:opacity-80'}`}
+                                    onClick={() => setIsOpen(!isOpen)}
+                                    className={`flex items-center gap-1 sm:gap-2 transition-colors focus:outline-none text-sm sm:text-2xl font-bold hover:opacity-80`}
                                     style={{ color: themeColor }}
                                 >
                                     <span className="whitespace-nowrap">{formatBranchName(selectedLocation)}</span>
-                                    {(userRole === 'admin' || userRole === 'executive') && <ChevronDown className={`w-3 h-3 sm:w-5 sm:h-5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />}
+                                    <ChevronDown className={`w-3 h-3 sm:w-5 sm:h-5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                                 </button>
                                 {isOpen && (
-                                    <div className="absolute left-0 top-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl py-2 w-42 sm:w-48 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="absolute left-0 top-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl py-2 w-48 sm:w-64 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div className="px-4 py-1 border-b border-slate-100 dark:border-slate-800 mb-1">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-[9px]">Select Location</span>
+                                        </div>
                                         {locationKeys.map(loc => (
-                                            <button
-                                                key={loc}
-                                                onClick={() => handleLocationSelect(loc)}
-                                                className={`w-full text-left px-4 py-2 text-sm transition-colors ${selectedLocation === loc ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                                            >
-                                                {formatBranchName(loc)}
-                                            </button>
+                                            <div key={loc} className="flex items-center px-1">
+                                                <button
+                                                    onClick={() => handleLocationSelect(loc)}
+                                                    className={`flex-grow text-left px-3 py-2 text-sm transition-colors rounded-md flex items-center justify-between ${selectedLocation === loc ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span>{formatBranchName(loc)}</span>
+                                                        {isDefaultLocation(loc) && (
+                                                            <span className="text-[9px] bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter">Default</span>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleSetDefault(e, loc)}
+                                                    title={isDefaultLocation(loc) ? "Current Default Location" : "Set as Default"}
+                                                    className={`p-2 transition-all rounded-md ${isDefaultLocation(loc) ? 'text-blue-600 dark:text-blue-400 scale-110' : 'text-slate-300 dark:text-slate-600 hover:text-blue-500'}`}
+                                                    disabled={pinning === loc}
+                                                >
+                                                    {pinning === loc ? (
+                                                        <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                                                    ) : (
+                                                        <Pin className={`w-3.5 h-3.5 ${isDefaultLocation(loc) ? 'fill-current' : ''}`} />
+                                                    )}
+                                                </button>
+                                            </div>
                                         ))}
                                     </div>
                                 )}
@@ -181,13 +219,15 @@ const Header = ({
                         <RotateCw className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                     </button>
 
-                    <button
-                        onClick={() => setShowManagerSettings(!showManagerSettings)}
-                        className={`p-1.5 sm:p-2 rounded-lg border transition-colors shadow-sm ${showManagerSettings ? 'bg-purple-600 border-purple-700 text-white shadow-purple-900/20' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                        title="Open Control Center (Rep & Manager)"
-                    >
-                        <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
+                    {userRole !== 'rep' && (
+                        <button
+                            onClick={() => setShowManagerSettings(!showManagerSettings)}
+                            className={`p-1.5 sm:p-2 rounded-lg border transition-colors shadow-sm ${showManagerSettings ? 'bg-purple-600 border-purple-700 text-white shadow-purple-900/20' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                            title="Open Control Center (Manager)"
+                        >
+                            <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
+                    )}
 
                     {/* View Mode Dropdown */}
                     <div className="relative">

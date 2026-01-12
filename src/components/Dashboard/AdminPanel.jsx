@@ -1,6 +1,7 @@
 import React from 'react';
 import { Shield, Save, ArrowLeft, Calendar, Trash2, Plus, MapPin, Percent, Target, RefreshCw, CheckCircle, AlertCircle, UserCog } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { formatBranchName } from '../../utils/formatters';
 
 import { AdminInput } from './Common';
 
@@ -20,10 +21,12 @@ const AdminPanel = ({
     sqlSyncStatus,
     handleTriggerAppsScript,
     triggerStatus,
-    saveSettingsToCloud,
     saveStatus,
     processedData,
-    setSelectedLocation
+    setSelectedLocation,
+    saveGlobalConfig,
+    saveHolidays,
+    saveAllBranchSettings
 }) => {
     const { user, setUser } = useAuth();
     const [showPermissionsModal, setShowPermissionsModal] = React.useState(false);
@@ -92,7 +95,7 @@ const AdminPanel = ({
 
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={saveSettingsToCloud}
+                        onClick={saveGlobalConfig}
                         disabled={saveStatus?.loading}
                         className={`flex items-center gap-2 px-6 py-2.5 rounded-xl transition-all font-bold text-sm shadow-lg ${saveStatus?.loading ? 'bg-slate-700 text-slate-400 cursor-not-allowed' :
                             saveStatus?.success ? 'bg-green-600 text-white shadow-green-900/20' :
@@ -100,7 +103,7 @@ const AdminPanel = ({
                             }`}
                     >
                         {saveStatus?.loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        {saveStatus?.loading ? 'Saving...' : saveStatus?.success ? 'Saved!' : 'Save Changes'}
+                        {saveStatus?.loading ? 'Saving...' : saveStatus?.success ? 'Saved Config' : 'Save Config'}
                     </button>
                     <button
                         onClick={() => setViewMode('manager')}
@@ -114,9 +117,19 @@ const AdminPanel = ({
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
                 <div className="space-y-10">
                     <div className="bg-slate-50 dark:bg-slate-950 rounded-2xl p-6 border border-slate-200 dark:border-slate-800">
-                        <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-purple-500" /> Holiday Configuration
-                        </h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-purple-500" /> Holiday Configuration
+                            </h3>
+                            <button
+                                onClick={saveHolidays}
+                                disabled={saveStatus?.loading}
+                                className="flex items-center gap-1.5 px-3 py-1 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 transition-all shadow-md"
+                            >
+                                {saveStatus?.loading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                Save Holidays
+                            </button>
+                        </div>
                         <div className="space-y-3 max-h-[250px] overflow-y-auto mb-4 pr-2">
                             {adminSettings.holidays.map(holiday => (
                                 <div key={holiday.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm group hover:border-purple-200 transition-colors">
@@ -153,17 +166,27 @@ const AdminPanel = ({
                     <div>
                         <div className="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">
                             <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Location Sales Goals</h3>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-slate-500">Year:</span>
-                                <select
-                                    className="bg-slate-800 text-white text-sm font-bold px-3 py-1.5 rounded-lg border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
-                                    value={adminSettings.selectedGoalYear || new Date().getFullYear()}
-                                    onChange={(e) => setAdminSettings(prev => ({ ...prev, selectedGoalYear: parseInt(e.target.value) }))}
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-slate-500">Year:</span>
+                                    <select
+                                        className="bg-slate-800 text-white text-sm font-bold px-3 py-1.5 rounded-lg border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={adminSettings.selectedGoalYear || new Date().getFullYear()}
+                                        onChange={(e) => setAdminSettings(prev => ({ ...prev, selectedGoalYear: parseInt(e.target.value) }))}
+                                    >
+                                        <option value={2024}>2024</option>
+                                        <option value={2025}>2025</option>
+                                        <option value={2026}>2026</option>
+                                    </select>
+                                </div>
+                                <button
+                                    onClick={saveAllBranchSettings}
+                                    disabled={saveStatus?.loading}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-all shadow-md"
                                 >
-                                    <option value={2024}>2024</option>
-                                    <option value={2025}>2025</option>
-                                    <option value={2026}>2026</option>
-                                </select>
+                                    {saveStatus?.loading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                    Save Goals
+                                </button>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -178,7 +201,7 @@ const AdminPanel = ({
                                     <div key={loc} className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-200 transition-colors">
                                         <div className="flex items-center gap-2 mb-3">
                                             <MapPin className="w-4 h-4 text-blue-500" />
-                                            <span className="font-bold text-slate-700 dark:text-slate-200">{loc}</span>
+                                            <span className="font-bold text-slate-700 dark:text-slate-200">{formatBranchName(loc)}</span>
                                         </div>
                                         <div className="space-y-4">
                                             <AdminInput

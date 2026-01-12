@@ -27,10 +27,12 @@ const ReportDashboard = ({ initialViewMode }) => {
         refreshTrigger, setRefreshTrigger, darkMode, setDarkMode, adminSettings, setAdminSettings,
         processedData, visibleData, companyProcessedData, branchSummary, toggleAdminMode, monthNames, handleSort,
         handleLocationGoalChange, handleLocationMonthPctChange, handleFormulaChange, toggleRepVisibility,
-        handleTriggerAppsScript, triggerStatus, saveSettingsToCloud, saveStatus,
+        handleTriggerAppsScript, triggerStatus, saveStatus,
         productsData,
         selectedDate, setSelectedDate, dateMode, setDateMode, calculateTotalWorkDays, calculateElapsedWorkDays,
-        canUndo, canRedo, undoSettings, redoSettings
+        canUndo, canRedo, undoSettings, redoSettings,
+        saveGlobalConfig, saveHolidays, saveBranchSettings, saveRepSettings, saveAllBranchSettings,
+        updateUserDefaultLocation
     } = useDashboardData(initialViewMode);
 
     // Weather Effect
@@ -38,6 +40,40 @@ const ReportDashboard = ({ initialViewMode }) => {
 
     // Selected Rep for Modal
     const [selectedRep, setSelectedRep] = useState(null);
+
+    // Dynamic Favicon based on Location
+    React.useEffect(() => {
+        const favicon = document.querySelector('link[rel="icon"]');
+        if (!favicon) return;
+
+        const isKnoxville = selectedLocation === 'Knoxville';
+        const iconPath = isKnoxville ? `${import.meta.env.BASE_URL}BBMLOGOVols.png` : `${import.meta.env.BASE_URL}BBMLOGO.png`;
+
+        // Ensure aspect ratio for favicon (pad to square)
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            // Favicons are typically 32x32 or 64x64, let's use 64x64 for quality
+            const size = 64;
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Calculate scale to fit width/height while maintaining ratio
+            const scale = Math.min(size / img.width, size / img.height);
+            const w = img.width * scale;
+            const h = img.height * scale;
+
+            // Center the image in the square canvas
+            const x = (size - w) / 2;
+            const y = (size - h) / 2;
+
+            ctx.drawImage(img, x, y, w, h);
+            favicon.href = canvas.toDataURL('image/png');
+        };
+        img.src = iconPath;
+    }, [selectedLocation]);
 
     // Check for Celebration (User met monthly goal)
     const isGoalReached = React.useMemo(() => {
@@ -109,6 +145,7 @@ const ReportDashboard = ({ initialViewMode }) => {
                         setViewMode={setViewMode}
                         showManagerSettings={showManagerSettings}
                         setShowManagerSettings={setShowManagerSettings}
+                        updateUserDefaultLocation={updateUserDefaultLocation}
                     />
                 </div>
 
@@ -122,7 +159,6 @@ const ReportDashboard = ({ initialViewMode }) => {
                                 toggleRepVisibility={toggleRepVisibility}
                                 adminSettings={adminSettings}
                                 setAdminSettings={setAdminSettings}
-                                saveSettingsToCloud={saveSettingsToCloud}
                                 saveStatus={saveStatus}
                                 calculateElapsedWorkDays={calculateElapsedWorkDays}
                                 user={user}
@@ -147,6 +183,11 @@ const ReportDashboard = ({ initialViewMode }) => {
                                 canRedo={canRedo}
                                 undoSettings={undoSettings}
                                 redoSettings={redoSettings}
+                                saveBranchSettings={saveBranchSettings}
+                                saveRepSettings={saveRepSettings}
+                                saveGlobalConfig={saveGlobalConfig}
+                                saveHolidays={saveHolidays}
+                                saveAllBranchSettings={saveAllBranchSettings}
                             />
                         </div>
                     )}

@@ -24,8 +24,46 @@ export const formatPercent = (val) => {
 
 export const formatBranchName = (name) => {
     if (!name) return "";
-    const cleanName = String(name).trim();
-    if (cleanName.toUpperCase() === 'NATIONAL') return 'National Sales';
-    // Title Case: Capitalize first, lowercase rest
+    const cleanName = String(name).trim().toUpperCase();
+
+    const mapping = {
+        'NATI': 'National Sales',
+        'KNOX': 'Knoxville',
+        'CLEV': 'Cleveland',
+        'CHAT': 'Chattanooga',
+        'DALT': 'Dalton',
+        'ASHE': 'Asheville',
+        'GREE': 'Greenville',
+        'CHAR': 'Charlotte',
+        'NATIONAL': 'National Sales'
+    };
+
+    if (mapping[cleanName]) return mapping[cleanName];
+
+    // Title Case fallback: Capitalize first, lowercase rest
     return cleanName.charAt(0).toUpperCase() + cleanName.slice(1).toLowerCase();
+};
+
+export const getBranchId = (name) => {
+    if (!name) return 'KNOX';
+    const cleanName = String(name).trim();
+
+    const reverseMapping = {
+        'National': 'NATI', 'National Sales': 'NATI',
+        'Knoxville': 'KNOX',
+        'Cleveland': 'CLEV',
+        'Chattanooga': 'CHAT',
+        'Dalton': 'DALT',
+        'Asheville': 'ASHE',
+        'Greenville': 'GREE',
+        'Charlotte': 'CHAR',
+        'All': 'All'
+    };
+
+    if (reverseMapping[cleanName]) return reverseMapping[cleanName];
+
+    // If it's already a 4-char ID (and valid-ish)
+    if (cleanName.length === 4 && cleanName === cleanName.toUpperCase()) return cleanName;
+
+    return 'KNOX'; // Fallback
 };

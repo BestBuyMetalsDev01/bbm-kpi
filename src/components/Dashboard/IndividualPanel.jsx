@@ -97,7 +97,7 @@ const IndividualPanel = ({
     const rank = useMemo(() => getRank(streakStats.totalWins), [streakStats.totalWins]);
     const rankProgress = useMemo(() => getNextRankProgress(streakStats.totalWins), [streakStats.totalWins]);
 
-    const displayBranch = formatBranchName(user.Department);
+    const displayBranch = formatBranchName(user.department);
 
     return (
         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">

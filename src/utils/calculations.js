@@ -61,12 +61,20 @@ export const calculateMonthlyGoal = ({ repSettings, locGoals, year, monthIndex }
 export const filterByUser = (data, user) => {
     if (!data || !user) return [];
 
+    const userEmail = (user.email || '').toLowerCase();
+    const userId = (user.employeeId || '').trim().toUpperCase();
+    const userName = (user.name || '').trim();
+
     return data.filter(row => {
-        if (user.employeeId) {
-            return row.strSalesperson === user.employeeId ||
-                row.strSalesperson === `P${user.employeeId} `;
+        const rowId = (row.strSalesperson || '').trim().toUpperCase();
+
+        if (userId) {
+            // Check for direct match or P-prefix match
+            return rowId === userId || rowId === `P${userId}`;
         }
-        return row.strName === user.name;
+
+        // Fallback to name match
+        return (row.strName || '').trim() === userName;
     });
 };
 
@@ -111,15 +119,19 @@ export const calculateRepMetrics = (row, {
     const currentYear = rowDate ? rowDate.getFullYear() : selectedDate.getFullYear();
     const currentMonthIndex = rowDate ? rowDate.getMonth() : selectedDate.getMonth();
 
-    // Get rep settings with month overrides applied
-    const baseRepSettings = adminSettings.repSettings?.[row.strSalesperson] || {};
+    // Get rep settings with month overrides applied (Scoped by Branch)
+    // adminSettings.repSettings is now { [branchId]: { [repId]: settings } }
+    const branchId = row.strDepartmentID || 'KNOX';
+    const branchSettings = adminSettings.repSettings?.[branchId] || {};
+    const baseRepSettings = branchSettings[row.strSalesperson] || {};
+
     const repSettings = rowDate
         ? resolveMonthOverride(baseRepSettings, currentYear, currentMonthIndex)
         : baseRepSettings;
 
     // Days worked for this specific calculation
     const rw = parseFloat(repSettings.daysWorked) || parseFloat(adminSettings.daysWorked) || elapsedDays || 1;
-    const locGoals = adminSettings.locationGoals[row.strDepartment] || {};
+    const locGoals = adminSettings.locationGoals[branchId] || {}; // Use ID lookup
 
     // Calculate goal using shared helper
     const totalSalesGoal = calculateMonthlyGoal({

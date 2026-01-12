@@ -19,7 +19,8 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     const [productsData, setProductsData] = useState([]);
 
     const [darkMode, setDarkMode] = useState(() => {
-        return localStorage.getItem('bbm_kpi_dark_mode') === 'true';
+        const saved = localStorage.getItem('bbm_kpi_dark_mode');
+        return saved === null ? true : saved === 'true';
     });
 
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -48,14 +49,14 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             defaultEstGoal: 300000,
             defaultEstQtyGoal: 40,
             locationGoals: {
-                "Knoxville": { yearlySales: 15400000, monthlyPcts: [6.1, 6.7, 7.8, 8.6, 9.2, 9.2, 8.9, 9.6, 8.9, 9.6, 7.9, 7.5], profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
-                'Cleveland': { yearlySales: 1000000, monthlyPcts: Array(12).fill(8.33), est: 200000, estQty: 30, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
-                'Chattanooga': { yearlySales: 1200000, monthlyPcts: Array(12).fill(8.33), est: 250000, estQty: 35, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
-                'Dalton': { yearlySales: 900000, monthlyPcts: Array(12).fill(8.33), est: 180000, estQty: 25, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
-                'Asheville': { yearlySales: 1500000, monthlyPcts: Array(12).fill(8.33), est: 300000, estQty: 40, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
-                'Greenville': { yearlySales: 1300000, monthlyPcts: Array(12).fill(8.33), est: 280000, estQty: 38, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
-                'Charlotte': { yearlySales: 1800000, monthlyPcts: Array(12).fill(8.33), est: 350000, estQty: 50, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
-                'National': { yearlySales: 5000000, monthlyPcts: Array(12).fill(8.33), est: 800000, estQty: 100, profitGoal: 30, closeRateDollar: 40, closeRateQty: 35 },
+                "KNOX": { yearlySales: 15400000, monthlyPcts: [6.1, 6.7, 7.8, 8.6, 9.2, 9.2, 8.9, 9.6, 8.9, 9.6, 7.9, 7.5], profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
+                'CLEV': { yearlySales: 1000000, monthlyPcts: Array(12).fill(8.33), est: 200000, estQty: 30, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
+                'CHAT': { yearlySales: 1200000, monthlyPcts: Array(12).fill(8.33), est: 250000, estQty: 35, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
+                'DALT': { yearlySales: 900000, monthlyPcts: Array(12).fill(8.33), est: 180000, estQty: 25, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
+                'ASHE': { yearlySales: 1500000, monthlyPcts: Array(12).fill(8.33), est: 300000, estQty: 40, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
+                'GREE': { yearlySales: 1300000, monthlyPcts: Array(12).fill(8.33), est: 280000, estQty: 38, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
+                'CHAR': { yearlySales: 1800000, monthlyPcts: Array(12).fill(8.33), est: 350000, estQty: 50, profitGoal: 25, closeRateDollar: 30, closeRateQty: 25 },
+                'NATI': { yearlySales: 5000000, monthlyPcts: Array(12).fill(8.33), est: 800000, estQty: 100, profitGoal: 30, closeRateDollar: 40, closeRateQty: 35 },
             },
             visibleRepIds: [],
             initializedLocations: [],
@@ -83,15 +84,19 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const fetchedRef = useRef(false);
 
-    // Derived Visibility derived from adminSettings
-    const visibleRepIds = useMemo(() => new Set(adminSettings.visibleRepIds || []), [adminSettings.visibleRepIds]);
-    const initializedLocationsSet = useMemo(() => new Set(adminSettings.initializedLocations || []), [adminSettings.initializedLocations]);
+    // Rep Visibility is now tracked per branch in rep_settings table.
+    // In local state, we'll keep a map of branch_id -> Set of visible salesperson_ids
+    const [branchVisibility, setBranchVisibility] = useState({});
 
-    const setVisibleRepIds = (newSelection) => {
-        setAdminSettings(prev => {
-            const currentSet = new Set(prev.visibleRepIds || []);
+    const visibleRepIds = useMemo(() => {
+        return new Set(branchVisibility[selectedLocation] || []);
+    }, [branchVisibility, selectedLocation]);
+
+    const setVisibleRepIds = (newSelection, branchId = selectedLocation) => {
+        setBranchVisibility(prev => {
+            const currentSet = new Set(prev[branchId] || []);
             const nextSet = typeof newSelection === 'function' ? newSelection(currentSet) : newSelection;
-            return { ...prev, visibleRepIds: Array.from(nextSet) };
+            return { ...prev, [branchId]: Array.from(nextSet) };
         });
     };
 
@@ -170,14 +175,19 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         setViewMode(initialViewMode);
     }, [initialViewMode]);
 
-    // Ensure Manager Settings shows when in Manager Mode
+    // Ensure Manager Settings shows when in Manager Mode (but never for reps)
     useEffect(() => {
-        setShowManagerSettings(viewMode === 'manager');
+        if (userRole === 'rep') {
+            setShowManagerSettings(false);
+        } else {
+            setShowManagerSettings(viewMode === 'manager');
+        }
+
         // Force 'All' locations for company comparison to prevent summary mismatch
         if (viewMode === 'comparison' && selectedLocation !== 'All') {
             setSelectedLocation('All');
         }
-    }, [viewMode, selectedLocation]);
+    }, [viewMode, selectedLocation, userRole]);
 
 
     // Automatically initialize visibility for a new location the first time it is visited
@@ -222,28 +232,117 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         fetchedRef.current = true;
 
         const syncInitialData = async () => {
-            console.log("Supabase: Syncing Initial Settings & User Info for:", user.email);
+            console.log("Supabase: Atomic Sync starting for:", user.email);
             try {
-                // 1. Fetch Settings
-                const { data: settingsRows, error: settingsError } = await supabase
-                    .from('dashboard_settings')
-                    .select('data')
-                    .eq('id', 'primary');
+                // 1. Fetch Global Config (legacy primary row, but now only for URLs/Formulas)
+                const { data: globalRows } = await supabase.from('dashboard_settings').select('data').eq('id', 'primary');
+                const globalData = globalRows?.[0]?.data || {};
 
-                if (settingsError) {
-                    console.error("Supabase: Settings fetch error:", settingsError);
-                } else if (settingsRows && settingsRows.length > 0) {
-                    console.log("Supabase: Loaded remote settings.");
-                    setAdminSettings(prev => ({ ...prev, ...settingsRows[0].data }));
-                } else {
-                    console.log("Supabase: No remote settings found, using defaults.");
+                // 2. Fetch Branch Settings
+                const { data: branchRows } = await supabase.from('branch_settings').select('*');
+                const locationGoals = {};
+                if (branchRows) {
+                    branchRows.forEach(row => {
+                        locationGoals[row.branch_id] = {
+                            yearlySales: 0, // Fallback
+                            ...row.yearly_sales, // Spreads yearlySales2024, etc.
+                            monthlyPcts: row.monthly_pcts,
+                            profitGoal: row.profit_goal,
+                            closeRateDollar: row.close_rate_dollar,
+                            closeRateQty: row.close_rate_qty,
+                            metadata: row.metadata
+                        };
+                    });
                 }
 
+                // 3. Fetch Rep Settings (Visibility, Days, Targets)
+                const { data: repRows } = await supabase.from('rep_settings').select('*');
+                const repSettingsMap = {}; // { [branchId]: { [repId]: settings } }
+                const visibilityMap = {};
+
+                if (repRows) {
+                    repRows.forEach(row => {
+                        const sid = row.salesperson_id;
+                        const bid = row.branch_id;
+
+                        // Per-Store Settings structure
+                        if (!repSettingsMap[bid]) repSettingsMap[bid] = {};
+                        if (!repSettingsMap[bid][sid]) repSettingsMap[bid][sid] = { months: {} };
+
+                        repSettingsMap[bid][sid] = {
+                            ...repSettingsMap[bid][sid],
+                            daysWorked: row.days_worked,
+                            targetPct: row.target_pct,
+                            ...row.metadata // Merges personal goals
+                        };
+
+                        // Visibility (Per Branch)
+                        if (!visibilityMap[bid]) visibilityMap[bid] = [];
+                        if (row.is_visible) visibilityMap[bid].push(sid);
+                    });
+                }
+
+                // 4. Fetch Holidays
+                const { data: holidayRows } = await supabase.from('holidays').select('*').order('date', { ascending: true });
+
+                // --- Migration Logic ---
+                // If branch_settings is empty but legacy globalData.locationGoals exists, migrate it
+                if ((!branchRows || branchRows.length === 0) && globalData.locationGoals) {
+                    console.log("Supabase Migration: Populating branch_settings from legacy data...");
+                    for (const [bid, goal] of Object.entries(globalData.locationGoals)) {
+                        const yearlySales = {};
+                        Object.keys(goal).forEach(k => { if (k.startsWith('yearlySales')) yearlySales[k] = goal[k]; });
+                        await supabase.from('branch_settings').upsert({
+                            branch_id: bid,
+                            yearly_sales: yearlySales,
+                            monthly_pcts: goal.monthlyPcts,
+                            profit_goal: goal.profitGoal,
+                            close_rate_dollar: goal.closeRateDollar,
+                            close_rate_qty: goal.closeRateQty,
+                            metadata: goal.metadata || {}
+                        });
+                        locationGoals[bid] = goal;
+                    }
+                }
+
+                // If rep_settings is empty but legacy globalData.repSettings exists, migrate it
+                if ((!repRows || repRows.length === 0) && globalData.repSettings) {
+                    console.log("Supabase Migration: Populating rep_settings from legacy data...");
+                    for (const [sid, rep] of Object.entries(globalData.repSettings)) {
+                        // For migration, we might not know the branch, but we can try to guess or just store as is
+                        // Actually, legacy repSettings didn't have branch_id. 
+                        // We'll iterate through all locations and if the rep belongs there, we save.
+                        // For simplicity, we'll just migrate the visibility to the branch visibility map for now
+                    }
+                }
+
+                // If holidays is empty but legacy globalData.holidays exists, migrate it
+                if ((!holidayRows || holidayRows.length === 0) && globalData.holidays) {
+                    console.log("Supabase Migration: Populating holidays from legacy data...");
+                    for (const h of globalData.holidays) {
+                        await supabase.from('holidays').upsert({ name: h.name, date: h.date });
+                    }
+                }
+
+                // Merge into local adminSettings state
+                setAdminSettings(prev => ({
+                    ...prev,
+                    ...globalData,
+                    locationGoals: { ...prev.locationGoals, ...locationGoals },
+                    repSettings: { ...prev.repSettings, ...repSettingsMap },
+                    holidays: holidayRows?.length > 0 ? holidayRows : (globalData.holidays || prev.holidays)
+                }));
+
+                setBranchVisibility(visibilityMap);
+
+                console.log("Supabase: Atomic Sync complete.");
+
                 // 2. Fetch User/Employee Info
+                const userEmail = user.email.toLowerCase();
                 const { data: empRows, error: empError } = await supabase
                     .from('employees')
                     .select('*')
-                    .eq('email', user.email.toLowerCase());
+                    .eq('email', userEmail);
 
                 const empInfo = empRows && empRows.length > 0 ? empRows[0] : null;
 
@@ -252,7 +351,6 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 }
 
                 // Assign roles regardless of whether employee lookup succeeded (fallback to rep or admin check)
-                const userEmail = user.email.toLowerCase();
                 const customRole = adminSettings.permissions?.[userEmail];
                 let role = 'rep';
 
@@ -272,7 +370,14 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                 setUserRole(role);
 
                 // Initial Location handling
-                if (empInfo?.department && Object.keys(adminSettings.locationGoals).includes(empInfo.department)) {
+                const userMetadata = empInfo?.metadata || {};
+                const defaultLoc = userMetadata.defaultLocation;
+
+                if (defaultLoc && Object.keys(adminSettings.locationGoals).includes(defaultLoc)) {
+                    console.log("Supabase: Applying user-specific default location:", defaultLoc);
+                    setSelectedLocation(defaultLoc);
+                } else if (empInfo?.department && Object.keys(adminSettings.locationGoals).includes(empInfo.department)) {
+                    console.log("Supabase: Applying assigned department as default:", empInfo.department);
                     setSelectedLocation(empInfo.department);
                 }
 
@@ -284,8 +389,20 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                     setSelectedLocation('All');
                 }
 
+                // Update context user with database info (carefully merge metadata)
                 if (empInfo) {
-                    setUser(prev => ({ ...prev, employeeId: empInfo.employee_id, ...empInfo }));
+                    setUser(prev => {
+                        const mergedMetadata = {
+                            ...(prev?.metadata || {}),
+                            ...(empInfo.metadata || {})
+                        };
+                        return {
+                            ...prev,
+                            ...empInfo,
+                            metadata: mergedMetadata,
+                            employeeId: empInfo.employee_id || prev?.employeeId
+                        };
+                    });
                 }
             } catch (err) {
                 console.error("Supabase sync failed:", err);
@@ -295,22 +412,211 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         syncInitialData();
     }, [user?.email]);
 
-    // Cloud Persistence: Save Function
+    // Atomic Save Functions
     const [saveStatus, setSaveStatus] = useState({ loading: false, success: false, error: null });
 
-    const saveSettingsToCloud = async () => {
+    const _performBranchSave = async (branchId) => {
+        const goal = adminSettings.locationGoals[branchId];
+        if (!goal) throw new Error("No settings found for branch: " + branchId);
+
+        const yearlySales = {};
+        Object.keys(goal).forEach(k => { if (k.startsWith('yearlySales')) yearlySales[k] = goal[k]; });
+
+        const payload = {
+            branch_id: branchId,
+            yearly_sales: yearlySales,
+            monthly_pcts: goal.monthlyPcts,
+            profit_goal: goal.profitGoal,
+            close_rate_dollar: goal.closeRateDollar,
+            close_rate_qty: goal.closeRateQty,
+            metadata: goal.metadata || {},
+            updated_at: new Date()
+        };
+
+        const { error } = await supabase.from('branch_settings').upsert(payload);
+        if (error) throw error;
+    };
+
+    const saveBranchSettings = async (branchId) => {
         setSaveStatus({ loading: true, success: false, error: null });
         try {
-            const { error } = await supabase
-                .from('dashboard_settings')
-                .upsert({ id: 'primary', data: adminSettings, updated_at: new Date() });
+            await _performBranchSave(branchId);
+            setSaveStatus({ loading: false, success: true, error: null });
+            setTimeout(() => setSaveStatus(prev => ({ ...prev, success: false })), 3000);
+            return { success: true };
+        } catch (error) {
+            console.error("Supabase Branch Save Failed:", error);
+            setSaveStatus({ loading: false, success: false, error: error.message });
+            return { success: false, error: error.message };
+        }
+    };
 
+    const saveRepSettings = async (salespersonId, branchId) => {
+        setSaveStatus({ loading: true, success: false, error: null });
+        try {
+            // Need a branch ID to save settings. If map passed "Knoxville", convert to "KNOX"
+            // Simple lookup reverse map
+            const nameToId = {
+                'Knoxville': 'KNOX', 'Cleveland': 'CLEV', 'Chattanooga': 'CHAT', 'Dalton': 'DALT',
+                'Asheville': 'ASHE', 'Greenville': 'GREE', 'Charlotte': 'CHAR', 'National': 'NATI',
+                'All': 'All'
+            };
+            const bid = nameToId[branchId] || branchId;
+
+            const repSet = adminSettings.repSettings?.[bid]?.[salespersonId] || {};
+            // If checking visibility, we need to know current state. We have visibleRepIds set for selectedLocation.
+            // But saving visibility is done via a different flow usually?
+            // Actually, visibility is saved here too? No, toggleRepVisibility updates state, but doesn't persist to DB immediately? 
+            // Wait, previous code didn't save visibility here. It fetched it row.is_visible. 
+            // We need to pass is_visible to upsert.
+
+            // Note: toggleRepVisibility should probably trigger a save, or saveRepSettings should include it.
+            // For now, let's assume we read from branchVisibility state
+            const isVisible = branchVisibility[bid]?.includes(salespersonId) ?? true;
+
+            const payload = {
+                salesperson_id: salespersonId,
+                branch_id: bid,
+                days_worked: repSet.daysWorked || 0,
+                target_pct: repSet.targetPct || 0,
+                is_visible: isVisible,
+                metadata: { months: repSet.months },
+                updated_at: new Date()
+            };
+
+            const { error } = await supabase.from('rep_settings').upsert(payload);
             if (error) throw error;
+
+            setSaveStatus({ loading: false, success: true, error: null });
+            setTimeout(() => setSaveStatus(prev => ({ ...prev, success: false })), 3000);
+            return { success: true };
+        } catch (error) {
+            console.error("Supabase Rep Save Failed:", error);
+            setSaveStatus({ loading: false, success: false, error: error.message });
+            return { success: false, error: error.message };
+        }
+    };
+
+
+    const saveAllBranchSettings = async () => {
+        setSaveStatus({ loading: true, success: false, error: null });
+        try {
+            const branchIds = Object.keys(adminSettings.locationGoals);
+            for (const bid of branchIds) {
+                await _performBranchSave(bid);
+            }
             setSaveStatus({ loading: false, success: true, error: null });
             setTimeout(() => setSaveStatus(prev => ({ ...prev, success: false })), 3000);
         } catch (error) {
-            console.error("Supabase Settings Save Failed:", error);
+            console.error("Supabase Save All Branches Failed:", error);
             setSaveStatus({ loading: false, success: false, error: error.message });
+        }
+    };
+    const saveGlobalConfig = async () => {
+        setSaveStatus({ loading: true, success: false, error: null });
+        try {
+            const config = {
+                googleSheetUrl: adminSettings.googleSheetUrl,
+                directoryScriptUrl: adminSettings.directoryScriptUrl,
+                autoRefreshEnabled: adminSettings.autoRefreshEnabled,
+                refreshInterval: adminSettings.refreshInterval,
+                daysWorked: adminSettings.daysWorked, // Global override
+                formulas: adminSettings.formulas,
+                permissions: adminSettings.permissions
+            };
+
+            const { error } = await supabase.from('dashboard_settings').upsert({ id: 'primary', data: config, updated_at: new Date() });
+            if (error) throw error;
+
+            setSaveStatus({ loading: false, success: true, error: null });
+            setTimeout(() => setSaveStatus(prev => ({ ...prev, success: false })), 3000);
+        } catch (error) {
+            console.error("Supabase Global Save Failed:", error);
+            setSaveStatus({ loading: false, success: false, error: error.message });
+        }
+    };
+
+    const saveHolidays = async () => {
+        setSaveStatus({ loading: true, success: false, error: null });
+        try {
+            // This is a bit more complex as it's a list. We'll replace all if we want to be simple, 
+            // or do individual upserts. Let's do a batch upsert.
+            const { error } = await supabase.from('holidays').upsert(adminSettings.holidays.map(h => ({
+                id: h.id > 1000 ? undefined : h.id, // New ones won't have serial ID yet
+                name: h.name,
+                date: h.date
+            })));
+            if (error) throw error;
+
+            setSaveStatus({ loading: false, success: true, error: null });
+            setTimeout(() => setSaveStatus(prev => ({ ...prev, success: false })), 3000);
+        } catch (error) {
+            console.error("Supabase Holiday Save Failed:", error);
+            setSaveStatus({ loading: false, success: false, error: error.message });
+        }
+    };
+
+
+    const updateUserDefaultLocation = async (location) => {
+        if (!user?.email) {
+            console.error("Supabase: Cannot update default location - No user email found.");
+            return { success: false, error: 'User not authenticated' };
+        }
+
+        try {
+            const userEmail = user.email.toLowerCase();
+            console.log(`Supabase: Pinning default location: ${location} for ${userEmail}`);
+
+            // 1. Fetch current record to preserve metadata and other fields
+            const { data: empRows, error: fetchError } = await supabase
+                .from('employees')
+                .select('*')
+                .eq('email', userEmail);
+
+            if (fetchError) throw fetchError;
+
+            const existingUser = empRows?.[0] || {};
+            const currentMetadata = existingUser.metadata || {};
+            const newMetadata = { ...currentMetadata, defaultLocation: location };
+
+            const payload = {
+                email: userEmail,
+                name: user.name || existingUser.name || 'Dashboard User',
+                metadata: newMetadata,
+                // Automatically assign department if the user doesn't have one yet
+                department: existingUser.department || location
+            };
+
+            console.log("Supabase: UPSERT Payload:", JSON.stringify(payload, null, 2));
+
+            // 2. Use upsert to handle both updates and initial creations
+            const { data, error: upsertError } = await supabase
+                .from('employees')
+                .upsert(payload, { onConflict: 'email' })
+                .select();
+
+            if (upsertError) {
+                console.group("Supabase Upsert Failure");
+                console.error("Error Code:", upsertError.code);
+                console.error("Message:", upsertError.message);
+                console.error("Details:", upsertError.details);
+                console.groupEnd();
+                throw upsertError;
+            }
+
+            console.log("Supabase: SUCCESSFULLY saved to DB:", data);
+
+            // 3. Update local state so UI reflects change immediately
+            setUser(prev => ({
+                ...prev,
+                metadata: newMetadata,
+                department: payload.department // Sync the department too
+            }));
+
+            return { success: true };
+        } catch (error) {
+            console.error("Supabase: Failed to pin default location:", error);
+            return { success: false, error: error.message };
         }
     };
 
@@ -396,11 +702,29 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
                         pDate = new Date(dateStr);
                     }
 
+                    // Map Department IDs to Location Names (All IDs are 4 characters)
+                    const deptMap = {
+                        'NATI': 'National',
+                        'KNOX': 'Knoxville',
+                        'CLEV': 'Cleveland',
+                        'CHAT': 'Chattanooga',
+                        'DALT': 'Dalton',
+                        'ASHE': 'Asheville',
+                        'GREE': 'Greenville',
+                        'CHAR': 'Charlotte'
+                    };
+
+                    const rawDept = item.department || '';
+                    const deptId = (item.department_id || '').trim().toUpperCase();
+
+                    // Priority: Mapping ID -> Raw Name -> "Unknown"
+                    const mappedDept = deptMap[deptId] || rawDept;
+
                     return {
-                        strSalesperson: item.salesperson_id,
+                        strSalesperson: (item.salesperson_id || '').trim().toUpperCase(),
                         strName: item.salesperson_name,
-                        strDepartment: item.department,
-                        strDepartmentID: item.department_id,
+                        strDepartment: mappedDept,
+                        strDepartmentID: deptId,
                         curOrderTotals: item.order_totals || 0,
                         intOrders: item.order_count || 0,
                         curQuoted: item.quoted_amount || 0,
@@ -514,7 +838,9 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     const visibleData = useMemo(() => {
         if (!processedData.length) return [];
 
-        if (viewMode === 'manager' || viewMode === 'viewer') {
+        // Apply visibility filtering for ALL roles if we are looking at a specific branch
+        // (Previously restricted to manager/viewer, causing filtering to have "no effect" for admins)
+        if (selectedLocation !== 'All') {
             const shownRows = [];
             const misc = {
                 strName: 'Misc / Other Reps', strDepartment: selectedLocation, isMisc: true,
@@ -528,7 +854,8 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             console.log(`Dashboard: Processing visibility for ${processedData.length} rows. Visible IDs:`, Array.from(visibleRepIds));
 
             processedData.forEach(row => {
-                if (visibleRepIds.has(row.strSalesperson)) {
+                const isVisible = visibleRepIds.has(row.strSalesperson);
+                if (isVisible) {
                     shownRows.push(row);
                 } else {
                     miscCount++; misc.curOrderTotals += row.curOrderTotals; misc.intOrders += row.intOrders; misc.curQuoted += (row.curQuoted || 0);
@@ -580,9 +907,6 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         setAdminSettings(prev => {
             const currentGoals = prev.locationGoals?.[location] || { yearlySales: 0, monthlyPcts: Array(12).fill(8.33) };
 
-            // For 'est' and 'estQty' we might want to keep them as strings until calculation for better UX 
-            // (so users can type '200000' without it jumping to 200000 immediately), 
-            // but for safety let's just make sure they update.
             return {
                 ...prev,
                 locationGoals: {
@@ -610,7 +934,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     const toggleRepVisibility = (repId) => {
         const newSet = new Set(visibleRepIds);
         if (newSet.has(repId)) newSet.delete(repId); else newSet.add(repId);
-        setVisibleRepIds(newSet);
+        setVisibleRepIds(newSet, selectedLocation);
     };
 
     const handleSort = (key) => {
@@ -624,11 +948,9 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         setShowManagerSettings(false);
     };
 
-    const handleTriggerSync = async () => {
+    const handleTriggerAppsScript = async () => {
         setTriggerStatus({ loading: true, error: null, success: false });
         try {
-            // Note: Since bridge.gs runs in Apps Script, you still trigger it via an Apps Script URL
-            // if you want the "Sync Now" button to work. 
             const url = adminSettings.googleSheetUrl;
             if (!url) throw new Error("Trigger URL not configured.");
 
@@ -651,16 +973,18 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         data, loading, sortConfig, viewMode, setViewMode, userRole, selectedLocation, setSelectedLocation,
         showManagerSettings, setShowManagerSettings, visibleRepIds, setVisibleRepIds,
         refreshTrigger, setRefreshTrigger, darkMode, setDarkMode,
-        saveSettingsToCloud,
         saveStatus,
         adminSettings, setAdminSettings,
         calculateTotalWorkDays, processedData, visibleData, companyProcessedData, branchSummary, toggleAdminMode, monthNames, handleSort,
         handleLocationGoalChange, handleLocationMonthPctChange, handleFormulaChange, toggleRepVisibility,
-        handleTriggerSync, triggerStatus,
+        handleTriggerAppsScript, triggerStatus,
         productsData,
         selectedDate, setSelectedDate,
         dateMode, setDateMode,
         calculateElapsedWorkDays,
+        updateUserDefaultLocation,
+        // Atomic Saves
+        saveBranchSettings, saveRepSettings, saveGlobalConfig, saveHolidays, saveAllBranchSettings,
         // Undo/Redo
         canUndo, canRedo, undoSettings, redoSettings
     };

@@ -2,6 +2,7 @@ import React from 'react';
 import { Users, Eye, EyeOff, CalendarDays, Percent, Save, RefreshCw, DollarSign, Target, Settings, User, Shield, Undo2, Redo2 } from 'lucide-react';
 import { AdminInput } from './Common';
 import AdminPanel from './AdminPanel';
+import { getBranchId } from '../../utils/formatters';
 
 const ManagerPanel = ({
     selectedLocation,
@@ -10,7 +11,6 @@ const ManagerPanel = ({
     toggleRepVisibility,
     adminSettings,
     setAdminSettings,
-    saveSettingsToCloud,
     saveStatus,
     calculateElapsedWorkDays,
     user,
@@ -19,24 +19,26 @@ const ManagerPanel = ({
     selectedDate,
     processedData,
     branchSummary,
-    fullHistory,
     setViewMode,
-    newHoliday,
-    setNewHoliday,
-    handleAddHoliday,
-    handleDeleteHoliday,
     handleLocationGoalChange,
     handleLocationMonthPctChange,
     handleFormulaChange,
-    handleSyncData,
-    sqlSyncStatus,
     handleTriggerAppsScript,
     triggerStatus,
     setSelectedLocation: setHeaderLocation,
     canUndo,
     canRedo,
     undoSettings,
-    redoSettings
+    redoSettings,
+    saveBranchSettings,
+    saveRepSettings,
+    saveGlobalConfig,
+    saveHolidays,
+    saveAllBranchSettings,
+    newHoliday,
+    setNewHoliday,
+    handleAddHoliday,
+    handleDeleteHoliday
 }) => {
     const [activeTab, setActiveTab] = React.useState('manager'); // 'manager' or 'admin'
     const [selectedMonth, setSelectedMonth] = React.useState(() => {
@@ -54,8 +56,10 @@ const ManagerPanel = ({
     }, [userRole]);
 
     // Permission check: Managers only edit their own store
+    // Use the stored department from the user profile, not the selected header location
     const isRestrictedManager = userRole === 'manager';
-    const showSettingsContent = !isRestrictedManager || user.Department === selectedLocation;
+    const userBranch = user.department || user.Department; // Support varied case from different sync points
+    const showSettingsContent = !isRestrictedManager || userBranch === selectedLocation;
 
     // Deduplicate reps and filter by recent activity
     const uniqueReps = React.useMemo(() => {
@@ -106,9 +110,11 @@ const ManagerPanel = ({
         return unique.sort((a, b) => a.strName.localeCompare(b.strName));
     }, [data, selectedLocation, selectedMonth, adminSettings.repSettings]);
 
-    const handleRepSettingChange = (repId, field, value) => {
+    const handleRepSettingChange = (repId, branchId, field, value) => {
         setAdminSettings(prev => {
-            const currentRepSettings = prev.repSettings?.[repId] || {};
+            const safeBranchId = branchId || 'KNOX';
+            const currentBranchSettings = prev.repSettings?.[safeBranchId] || {};
+            const currentRepSettings = currentBranchSettings[repId] || {};
             const monthKey = selectedMonth;
             const existingMonths = currentRepSettings.months || {};
             const currentMonthSettings = existingMonths[monthKey] || {};
@@ -117,13 +123,16 @@ const ManagerPanel = ({
                 ...prev,
                 repSettings: {
                     ...prev.repSettings,
-                    [repId]: {
-                        ...currentRepSettings,
-                        months: {
-                            ...existingMonths,
-                            [monthKey]: {
-                                ...currentMonthSettings,
-                                [field]: value
+                    [safeBranchId]: {
+                        ...currentBranchSettings,
+                        [repId]: {
+                            ...currentRepSettings,
+                            months: {
+                                ...existingMonths,
+                                [monthKey]: {
+                                    ...currentMonthSettings,
+                                    [field]: value
+                                }
                             }
                         }
                     }
@@ -204,7 +213,7 @@ const ManagerPanel = ({
                             <Redo2 className="w-4 h-4" />
                         </button>
                         <button
-                            onClick={saveSettingsToCloud}
+                            onClick={() => saveBranchSettings(selectedLocation)}
                             disabled={saveStatus?.loading}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all font-bold text-xs ${saveStatus?.loading ? 'bg-slate-700 text-slate-400 cursor-not-allowed' :
                                 saveStatus?.success ? 'bg-green-600 text-white' :
@@ -226,21 +235,21 @@ const ManagerPanel = ({
                             setAdminSettings={setAdminSettings}
                             setViewMode={setViewMode}
                             monthNames={monthNames}
+                            handleLocationGoalChange={handleLocationGoalChange}
+                            handleLocationMonthPctChange={handleLocationMonthPctChange}
+                            handleFormulaChange={handleFormulaChange}
+                            handleTriggerAppsScript={handleTriggerAppsScript}
+                            triggerStatus={triggerStatus}
+                            saveStatus={saveStatus}
+                            processedData={processedData}
+                            setSelectedLocation={setHeaderLocation}
+                            saveGlobalConfig={saveGlobalConfig}
+                            saveHolidays={saveHolidays}
+                            saveAllBranchSettings={saveAllBranchSettings}
                             newHoliday={newHoliday}
                             setNewHoliday={setNewHoliday}
                             handleAddHoliday={handleAddHoliday}
                             handleDeleteHoliday={handleDeleteHoliday}
-                            handleLocationGoalChange={handleLocationGoalChange}
-                            handleLocationMonthPctChange={handleLocationMonthPctChange}
-                            handleFormulaChange={handleFormulaChange}
-                            handleSyncData={handleSyncData}
-                            sqlSyncStatus={sqlSyncStatus}
-                            handleTriggerAppsScript={handleTriggerAppsScript}
-                            triggerStatus={triggerStatus}
-                            saveSettingsToCloud={saveSettingsToCloud}
-                            saveStatus={saveStatus}
-                            processedData={processedData}
-                            setSelectedLocation={setHeaderLocation}
                         />
                     </div>
                 ) : (
@@ -249,54 +258,54 @@ const ManagerPanel = ({
                             <div className="p-12 text-center">
                                 <Shield className="w-16 h-16 text-slate-200 dark:text-slate-800 mx-auto mb-4" />
                                 <h3 className="text-xl font-bold text-slate-400">Restricted Access</h3>
-                                <p className="text-sm text-slate-500 mt-2">Managers can only manage settings for their assigned location ({user.Department}).</p>
+                                <p className="text-sm text-slate-500 mt-2">Managers can only manage settings for their assigned location ({userBranch}).</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
-                                <div className="space-y-10">
-                                    <div>
-                                        <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                            <Target className="w-4 h-4 text-purple-500" /> Automation Status
-                                        </h3>
-                                        <div className="bg-blue-50 dark:bg-blue-900/10 p-6 rounded-2xl border border-blue-100 dark:border-blue-900/30">
-                                            <p className="text-sm text-blue-700 dark:text-blue-400 font-medium">
-                                                Active Work Days: <span className="font-black underline">{calculateElapsedWorkDays} Days Elapsed</span>
-                                            </p>
-                                            <p className="text-xs text-blue-600/70 dark:text-blue-500/70 mt-2 italic">
-                                                To override this, please contact a System Administrator.
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Sales Rep Management</h3>
-                                            <div className="flex items-center gap-2">
-                                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Target Month:</label>
-                                                <input
-                                                    type="month"
-                                                    value={selectedMonth}
-                                                    onChange={(e) => setSelectedMonth(e.target.value)}
-                                                    className="text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 rounded px-2 py-1 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
-                                                />
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                                <div className="space-y-6">
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                                    <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <h3 className="text-lg font-black text-slate-800 dark:text-white leading-tight">Rep Settings</h3>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Month:</label>
+                                                        <input
+                                                            type="month"
+                                                            value={selectedMonth}
+                                                            onChange={(e) => setSelectedMonth(e.target.value)}
+                                                            className="text-[10px] bg-transparent border-none p-0 font-bold text-blue-600 dark:text-blue-400 focus:ring-0 outline-none"
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
+                                            <button
+                                                onClick={() => saveBranchSettings(selectedLocation)}
+                                                disabled={saveStatus?.loading}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md ${saveStatus?.loading ? 'bg-slate-700 text-slate-400' : 'bg-blue-600 text-white hover:bg-blue-700'
+                                                    }`}
+                                            >
+                                                {saveStatus?.loading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                                Save All
+                                            </button>
                                         </div>
-                                        <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                                            {uniqueReps.map(rep => {
-                                                const repSet = adminSettings.repSettings?.[rep.strSalesperson] || {};
-                                                // Check both padded (2024-01) and unpadded (2024-1) month keys
-                                                const [year, month] = selectedMonth.split('-').map(Number);
-                                                const unpaddedKey = `${year}-${month}`;
-                                                const monthSet = repSet.months?.[selectedMonth] || repSet.months?.[unpaddedKey] || {};
 
-                                                const targetPct = parseFloat(monthSet.targetPct ?? repSet.targetPct ?? 0);
+                                        <div className="space-y-3">
+                                            {filteredReps.map(rep => {
+                                                const bid = rep.strDepartmentID || getBranchId(selectedLocation);
+                                                const repSet = adminSettings.repSettings?.[bid]?.[rep.strSalesperson] || {};
+                                                const monthSet = repSet.months?.[selectedMonth] || {};
+                                                const targetPct = monthSet.targetPct ?? repSet.targetPct ?? '';
 
                                                 return (
-                                                    <div key={rep.strSalesperson} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm hover:border-blue-200 transition-colors group">
+                                                    <div key={rep.strSalesperson} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
                                                         <div className="flex items-center gap-3">
                                                             <button
                                                                 onClick={() => toggleRepVisibility(rep.strSalesperson)}
-                                                                className={`p-2 rounded-xl transition-all ${visibleRepIds.has(rep.strSalesperson) ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}
+                                                                className={`p-2 rounded-lg transition-colors ${visibleRepIds.has(rep.strSalesperson) ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-300 bg-slate-50 dark:bg-slate-900'}`}
                                                             >
                                                                 {visibleRepIds.has(rep.strSalesperson) ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                                             </button>
@@ -313,7 +322,7 @@ const ManagerPanel = ({
                                                                     type="number"
                                                                     className="w-12 text-center text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-lg py-1 focus:ring-2 focus:ring-blue-500 outline-none"
                                                                     value={monthSet.daysWorked ?? repSet.daysWorked ?? adminSettings.daysWorked ?? ''}
-                                                                    onChange={(e) => handleRepSettingChange(rep.strSalesperson, 'daysWorked', e.target.value)}
+                                                                    onChange={(e) => handleRepSettingChange(rep.strSalesperson, bid, 'daysWorked', e.target.value)}
                                                                 />
                                                             </div>
                                                             <div className="flex flex-col items-end">
@@ -322,13 +331,57 @@ const ManagerPanel = ({
                                                                     type="number"
                                                                     className="w-12 text-center text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-lg py-1 focus:ring-2 focus:ring-blue-500 outline-none"
                                                                     value={targetPct}
-                                                                    onChange={(e) => handleRepSettingChange(rep.strSalesperson, 'targetPct', e.target.value)}
+                                                                    onChange={(e) => handleRepSettingChange(rep.strSalesperson, bid, 'targetPct', e.target.value)}
                                                                 />
                                                             </div>
+                                                            <button
+                                                                onClick={() => saveRepSettings(rep.strSalesperson, bid)}
+                                                                className="p-2 text-slate-300 hover:text-blue-500 transition-colors"
+                                                                title="Individual Save"
+                                                            >
+                                                                <Save className="w-4 h-4" />
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 );
                                             })}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                                                    <Target className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                                </div>
+                                                <h3 className="text-lg font-black text-slate-800 dark:text-white leading-tight">Branch Ratios</h3>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                <AdminInput
+                                                    label="Profit Goal"
+                                                    value={adminSettings.locationGoals[selectedLocation]?.profitGoal || ''}
+                                                    onChange={(val) => handleLocationGoalChange(selectedLocation, 'profitGoal', val)}
+                                                    prefix="%"
+                                                />
+                                                <AdminInput
+                                                    label="Close $ Goal"
+                                                    value={adminSettings.locationGoals[selectedLocation]?.closeRateDollar || ''}
+                                                    onChange={(val) => handleLocationGoalChange(selectedLocation, 'closeRateDollar', val)}
+                                                    prefix="%"
+                                                />
+                                                <AdminInput
+                                                    label="Close Qty Goal"
+                                                    value={adminSettings.locationGoals[selectedLocation]?.closeRateQty || ''}
+                                                    onChange={(val) => handleLocationGoalChange(selectedLocation, 'closeRateQty', val)}
+                                                    prefix="%"
+                                                />
+                                            </div>
+
                                         </div>
                                     </div>
                                 </div>
