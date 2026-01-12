@@ -119,22 +119,42 @@ const ManagerPanel = ({
             const existingMonths = currentRepSettings.months || {};
             const currentMonthSettings = existingMonths[monthKey] || {};
 
+            let newRepObject = { ...currentRepSettings };
+
+            if (field === 'targetPct') {
+                // Update Base Setting
+                newRepObject[field] = value;
+                // If an override also exists for this month, we should probably clear it so the base setting isn't masked
+                // But for now, let's just assume we update base. The UI prefers monthSet ?? repSet.
+                // If monthSet.targetPct exists, base update won't show.
+                // Let's clear the override for this month to be safe/consistent with user intent.
+                if (newRepObject.months?.[monthKey]?.targetPct !== undefined) {
+                    newRepObject.months = {
+                        ...existingMonths,
+                        [monthKey]: {
+                            ...currentMonthSettings,
+                            targetPct: undefined
+                        }
+                    };
+                }
+            } else {
+                // Update Month Override (daysWorked, etc)
+                newRepObject.months = {
+                    ...existingMonths,
+                    [monthKey]: {
+                        ...currentMonthSettings,
+                        [field]: value
+                    }
+                };
+            }
+
             return {
                 ...prev,
                 repSettings: {
                     ...prev.repSettings,
                     [safeBranchId]: {
                         ...currentBranchSettings,
-                        [repId]: {
-                            ...currentRepSettings,
-                            months: {
-                                ...existingMonths,
-                                [monthKey]: {
-                                    ...currentMonthSettings,
-                                    [field]: value
-                                }
-                            }
-                        }
+                        [repId]: newRepObject
                     }
                 }
             };
