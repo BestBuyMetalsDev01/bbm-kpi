@@ -451,7 +451,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         }
     };
 
-    const saveRepSettings = async (salespersonId, branchId) => {
+    const saveRepSettings = async (salespersonId, branchId, isVisibleOverride = null) => {
         setSaveStatus({ loading: true, success: false, error: null });
         try {
             // Need a branch ID to save settings. If map passed "Knoxville", convert to "KNOX"
@@ -472,7 +472,13 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
 
             // Note: toggleRepVisibility should probably trigger a save, or saveRepSettings should include it.
             // For now, let's assume we read from branchVisibility state
-            const isVisible = branchVisibility[bid]?.includes(salespersonId) ?? true;
+            // Determine visibility: Use override if provided, otherwise check state
+            let isVisible = true;
+            if (isVisibleOverride !== null) {
+                isVisible = isVisibleOverride;
+            } else {
+                isVisible = branchVisibility[bid]?.includes(salespersonId) ?? true;
+            }
 
             const payload = {
                 salesperson_id: salespersonId,
@@ -932,9 +938,14 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
     const handleFormulaChange = (key, value) => setAdminSettings(prev => ({ ...prev, formulas: { ...prev.formulas, [key]: value } }));
 
     const toggleRepVisibility = (repId) => {
-        const newSet = new Set(visibleRepIds);
-        if (newSet.has(repId)) newSet.delete(repId); else newSet.add(repId);
-        setVisibleRepIds(newSet, selectedLocation);
+        const currentSet = new Set(visibleRepIds);
+        const willBeVisible = !currentSet.has(repId);
+
+        if (willBeVisible) currentSet.add(repId); else currentSet.delete(repId);
+        setVisibleRepIds(currentSet, selectedLocation);
+
+        // Auto-save the visibility change
+        saveRepSettings(repId, selectedLocation, willBeVisible);
     };
 
     const handleSort = (key) => {
