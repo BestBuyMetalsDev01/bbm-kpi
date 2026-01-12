@@ -441,6 +441,19 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         setSaveStatus({ loading: true, success: false, error: null });
         try {
             await _performBranchSave(branchId);
+
+            // 2. Save All Rep Settings for this branch
+            const nameToId = {
+                'Knoxville': 'KNOX', 'Cleveland': 'CLEV', 'Chattanooga': 'CHAT', 'Dalton': 'DALT',
+                'Asheville': 'ASHE', 'Greenville': 'GREE', 'Charlotte': 'CHAR', 'National': 'NATI',
+                'All': 'All'
+            };
+            const bid = nameToId[branchId] || branchId;
+            const branchReps = adminSettings.repSettings?.[bid] || {};
+
+            const repPromises = Object.keys(branchReps).map(repId => _performRepSave(repId, branchId));
+            await Promise.all(repPromises);
+
             setSaveStatus({ loading: false, success: true, error: null });
             setTimeout(() => setSaveStatus(prev => ({ ...prev, success: false })), 3000);
             return { success: true };
@@ -451,48 +464,44 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
         }
     };
 
+    const _performRepSave = async (salespersonId, branchId, isVisibleOverride = null) => {
+        // Need a branch ID to save settings. If map passed "Knoxville", convert to "KNOX"
+        // Simple lookup reverse map
+        const nameToId = {
+            'Knoxville': 'KNOX', 'Cleveland': 'CLEV', 'Chattanooga': 'CHAT', 'Dalton': 'DALT',
+            'Asheville': 'ASHE', 'Greenville': 'GREE', 'Charlotte': 'CHAR', 'National': 'NATI',
+            'All': 'All'
+        };
+        const bid = nameToId[branchId] || branchId;
+
+        const repSet = adminSettings.repSettings?.[bid]?.[salespersonId] || {};
+
+        // Determine visibility: Use override if provided, otherwise check state
+        let isVisible = true;
+        if (isVisibleOverride !== null) {
+            isVisible = isVisibleOverride;
+        } else {
+            isVisible = branchVisibility[bid]?.includes(salespersonId) ?? true;
+        }
+
+        const payload = {
+            salesperson_id: salespersonId,
+            branch_id: bid,
+            days_worked: repSet.daysWorked || 0,
+            target_pct: repSet.targetPct || 0,
+            is_visible: isVisible,
+            metadata: { months: repSet.months },
+            updated_at: new Date()
+        };
+
+        const { error } = await supabase.from('rep_settings').upsert(payload);
+        if (error) throw error;
+    };
+
     const saveRepSettings = async (salespersonId, branchId, isVisibleOverride = null) => {
         setSaveStatus({ loading: true, success: false, error: null });
         try {
-            // Need a branch ID to save settings. If map passed "Knoxville", convert to "KNOX"
-            // Simple lookup reverse map
-            const nameToId = {
-                'Knoxville': 'KNOX', 'Cleveland': 'CLEV', 'Chattanooga': 'CHAT', 'Dalton': 'DALT',
-                'Asheville': 'ASHE', 'Greenville': 'GREE', 'Charlotte': 'CHAR', 'National': 'NATI',
-                'All': 'All'
-            };
-            const bid = nameToId[branchId] || branchId;
-
-            const repSet = adminSettings.repSettings?.[bid]?.[salespersonId] || {};
-            // If checking visibility, we need to know current state. We have visibleRepIds set for selectedLocation.
-            // But saving visibility is done via a different flow usually?
-            // Actually, visibility is saved here too? No, toggleRepVisibility updates state, but doesn't persist to DB immediately? 
-            // Wait, previous code didn't save visibility here. It fetched it row.is_visible. 
-            // We need to pass is_visible to upsert.
-
-            // Note: toggleRepVisibility should probably trigger a save, or saveRepSettings should include it.
-            // For now, let's assume we read from branchVisibility state
-            // Determine visibility: Use override if provided, otherwise check state
-            let isVisible = true;
-            if (isVisibleOverride !== null) {
-                isVisible = isVisibleOverride;
-            } else {
-                isVisible = branchVisibility[bid]?.includes(salespersonId) ?? true;
-            }
-
-            const payload = {
-                salesperson_id: salespersonId,
-                branch_id: bid,
-                days_worked: repSet.daysWorked || 0,
-                target_pct: repSet.targetPct || 0,
-                is_visible: isVisible,
-                metadata: { months: repSet.months },
-                updated_at: new Date()
-            };
-
-            const { error } = await supabase.from('rep_settings').upsert(payload);
-            if (error) throw error;
-
+            await _performRepSave(salespersonId, branchId, isVisibleOverride);
             setSaveStatus({ loading: false, success: true, error: null });
             setTimeout(() => setSaveStatus(prev => ({ ...prev, success: false })), 3000);
             return { success: true };
@@ -502,6 +511,7 @@ export const useDashboardData = (initialViewMode = 'viewer') => {
             return { success: false, error: error.message };
         }
     };
+
 
 
     const saveAllBranchSettings = async () => {
