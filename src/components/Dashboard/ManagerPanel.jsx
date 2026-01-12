@@ -294,7 +294,7 @@ const ManagerPanel = ({
                                         </div>
 
                                         <div className="space-y-3">
-                                            {filteredReps.map(rep => {
+                                            {uniqueReps.map(rep => {
                                                 const bid = rep.strDepartmentID || getBranchId(selectedLocation);
                                                 const repSet = adminSettings.repSettings?.[bid]?.[rep.strSalesperson] || {};
                                                 const monthSet = repSet.months?.[selectedMonth] || {};
